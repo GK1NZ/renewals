@@ -300,6 +300,28 @@ table.t{border-collapse:collapse;width:100%;min-width:900px}
 <div class="toast" id="toast" hidden><span id="tmsg"></span><button type="button" id="tact" hidden></button></div>
 
 
+<script>
+/* Demo mode (#demo): everything this page stores goes to memory for this visit only, so the demo can never touch real work. */
+(function(){
+"use strict";
+var D=/^#demo\b/.test(location.hash||"");
+window.__BD_DEMO=D;
+if(!D||window.__BD_SHIM)return;window.__BD_SHIM=true;
+var ls=null;try{ls=window.localStorage}catch(e){}
+if(!ls)return;
+var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=Object.create(null);
+/* the LINZ keys can be read from real storage so the site photo works in the demo; they are never written back */
+var PASS={bd_linzkey:1,bd_ldskey:1};
+P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?g.call(this,key):null}return g.apply(this,arguments)};
+P.setItem=function(key,v){if(this===ls){mem[String(key)]=String(v);return}return s.apply(this,arguments)};
+P.removeItem=function(key){if(this===ls){delete mem[String(key)];return}return r.apply(this,arguments)};
+P.key=function(i){if(this===ls)return Object.keys(mem)[i]||null;return k.apply(this,arguments)};
+P.clear=function(){if(this===ls){mem=Object.create(null);return}return c.apply(this,arguments)};
+try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defineProperty(P,"length",{configurable:true,enumerable:true,get:function(){return this===ls?Object.keys(mem).length:lg.get.call(this)}})}catch(e){}
+/* no database on the device either */
+try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
+})();
+</script>
 <script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
@@ -448,6 +470,42 @@ function ics(inp){
   saveBlob("reminder.ics",new Blob([t],{type:"text/calendar"}));return{payload:{device:true}};
 }
 function msg(n){return mailMode()==="eml"?(n>1?"The draft files are in your downloads. Open each one, check it and send it.":"The draft file is in your downloads. Open it, check it and send it."):(n>1?"Tap each draft in the list at the bottom of the screen to open it in your mail app.":"Your mail app opens with the draft. Check it and send it.")}
+/* ---- demo: show drafts, files and reminders on screen instead of creating anything ---- */
+var DEMO=!!window.__BD_DEMO;
+var DQ=[],DI=0;
+/* several drafts made at once queue up, so each one can be looked at in turn */
+function demoBox(title,inner,after){
+  var o=document.getElementById("bddraftprev");if(!o){DQ=[];DI=0}
+  DQ.push({title:title,inner:inner,after:after});
+  if(!o){o=document.createElement("div");o.id="bddraftprev";o.setAttribute("role","dialog");
+    o.style.cssText="position:fixed;inset:0;z-index:2147482000;background:rgba(10,20,16,.45);display:flex;align-items:center;justify-content:center;padding:16px";
+    o.addEventListener("click",function(e){var a=e.target.dataset&&e.target.dataset.bdp;if(e.target===o||a==="x"){o.remove();DQ=[];return}if(a==="n"&&DI<DQ.length-1){DI++;draw()}else if(a==="p"&&DI>0){DI--;draw()}});
+    document.body.appendChild(o);}
+  draw();return o;
+}
+function draw(){
+  var o=document.getElementById("bddraftprev");if(!o)return;var it=DQ[DI],n=DQ.length,bs='border:1px solid var(--line,#ccd);background:none;border-radius:8px;padding:6px 12px;cursor:pointer;color:inherit;font:inherit';
+  o.setAttribute("aria-label",it.title);
+  o.innerHTML='<div class="bdp" style="background:var(--surface,#fff);color:var(--fg,var(--ink,#111));border-radius:14px;max-width:680px;width:100%;max-height:calc(100vh - 32px);display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35);font:14px/1.5 system-ui,sans-serif;overflow:hidden">'
+    +'<div style="padding:12px 16px;border-bottom:1px solid var(--line,#ccd);display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">'+esc(it.title)+(n>1?' <span style="font-weight:400;color:var(--muted,#667)">'+(DI+1)+' of '+n+'</span>':'')+'</b>'
+    +(n>1?'<button type="button" data-bdp="p" style="'+bs+'"'+(DI===0?' disabled':'')+'>Previous</button><button type="button" data-bdp="n" style="'+bs+'"'+(DI===n-1?' disabled':'')+'>Next</button>':'')
+    +'<button type="button" data-bdp="x" style="'+bs+'">Close</button></div>'
+    +'<div style="padding:12px 16px;overflow:auto">'+it.inner+'</div></div>';
+  if(it.after)it.after(o);
+}
+function demoDraft(inp){
+  var to=(inp.to||[]).join(", "),atts=inp.attachments||[];
+  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Gmail or Apple Mail) for you to check and send. Nothing is sent from here.</p>'
+    +'<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:0 0 10px"><span style="color:var(--muted,#667)">To</span><span style="overflow-wrap:anywhere">'+esc(to)+'</span>'+(inp.cc&&inp.cc.length?'<span style="color:var(--muted,#667)">Cc</span><span>'+esc(inp.cc.join(", "))+'</span>':'')+'<span style="color:var(--muted,#667)">Subject</span><b style="overflow-wrap:anywhere">'+esc(inp.subject||"")+'</b>'+(atts.length?'<span style="color:var(--muted,#667)">Attached</span><span>'+atts.map(function(a){return esc(a.filename)}).join(", ")+'</span>':'')+'</div>';
+  demoBox("Email draft to "+(to||"recipient"),head+(inp.htmlBody?'<iframe title="Email body" sandbox="" style="width:100%;height:46vh;border:1px solid var(--line,#ccd);border-radius:8px;background:#fff"></iframe>':'<pre style="white-space:pre-wrap;font:inherit;margin:0;border:1px solid var(--line,#ccd);border-radius:8px;padding:10px 12px">'+esc(inp.body||"")+'</pre>'),inp.htmlBody?function(o){var f=o.querySelector("iframe");if(f)f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:14px/1.5 system-ui,sans-serif;margin:12px">'+inp.htmlBody+'</body>'}:null);
+  return{payload:{demo:true}};
+}
+if(DEMO){
+  draft=function(inp){return demoDraft(inp||{})};
+  ics=function(inp){demoBox("Calendar reminder",'<p style="margin:0 0 8px">Demo: in real use this adds a reminder to your calendar.</p><p style="margin:0"><b>'+esc((inp&&inp.summary)||"")+'</b><br>'+esc(String((inp&&inp.startTime)||"").replace("T"," ").slice(0,16))+'</p>');return{payload:{demo:true}}};
+  saveBlob=function(name){demoBox("File",'<p style="margin:0">Demo: in real use <b>'+esc(name)+'</b> is saved to your downloads.</p>')};
+  msg=function(){return "In the demo the draft shows on screen. In real use it opens in your mail app."};
+}
 window.BDDevice={saveBlob:saveBlob,toEml:toEml,draft:draft,ics:ics,msg:msg,mailMode:mailMode,isPhone:isPhone};
 })();
 </script>
@@ -678,12 +736,13 @@ function startGate(msg){
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+f("wz_name","Your name",WZ.name,"e.g. Jane Smith")+f("wz_role","Job title",WZ.role||"Insurance Broker")+f("wz_mob","Mobile (optional)",WZ.mobile,"e.g. 021 123 4567","tel")+f("wz_email","Your email (optional)",WZ.email,"e.g. jane@yourfirm.co.nz","email")+f("wz_firm","Firm name (optional)",WZ.firm,"e.g. Smith Insurance Ltd")+f("wz_fsp","FSP number (optional)",WZ.fsp,"e.g. FSP123456")+'</div>'
     +'<p class="note" id="wz_sig" style="margin:8px 0 0;white-space:pre-line"></p>'
     +'<button class="btn pri" id="wz_next" type="button" style="width:100%;padding:11px;margin-top:14px">Next: your insurers</button>'
-    +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px"><button type="button" class="lnk" id="wz_restore" style="background:none;border:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;padding:0;text-align:left">Used Broker Desk before? Restore from a backup file</button><input type="file" id="wz_file" accept=".json,application/json" hidden></div>'
+    +'<button type="button" class="btn" id="wz_demo" style="width:100%;padding:10px;margin-top:8px">Not sure yet? See a demo first</button>'+'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px"><button type="button" class="lnk" id="wz_restore" style="background:none;border:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;padding:0;text-align:left">Used Broker Desk before? Restore from a backup file</button><input type="file" id="wz_file" accept=".json,application/json" hidden></div>'
     +'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Team: one shared database for several brokers</summary>'+msSetupHtml()+'</details>',
     function(c){
       wireMs(c);
       var sig=function(){if(!c.querySelector("#wz_sig")||!c.querySelector("#wz_name"))return;var g=function(i){return c.querySelector(i).value.trim()},n=g("#wz_name");c.querySelector("#wz_sig").textContent=n?"Your emails will be signed:\nKind regards\n"+n+"\n"+g("#wz_role")+(g("#wz_firm")?", "+g("#wz_firm"):"")+(g("#wz_mob")?"\nM "+g("#wz_mob"):"")+(g("#wz_email")?"\n"+g("#wz_email"):""):""};
       c.addEventListener("input",sig);sig();
+      c.querySelector("#wz_demo").onclick=function(){location.href=location.pathname+location.search+"#demo";location.reload()};
       c.querySelector("#wz_restore").onclick=function(){c.querySelector("#wz_file").click()};
       c.querySelector("#wz_file").onchange=function(e){var fl=e.target.files[0];if(fl)restoreFile(fl,true)};
       c.querySelector("#wz_next").onclick=function(){
@@ -728,6 +787,28 @@ async function startDevice(){
   if(CHAN)CHAN.onmessage=function(m){if(m&&m.data&&m.data.t==="data")db._refresh()};
   finish();bkLoad();setInterval(drawBar,60000);
 }
+async function startDemoMode(){
+  var db=makeDb(memStore(),0);
+  ME={id:"me",name:"Alex Morgan",email:"alex@example.co.nz"};window.__RR_ME=ME;
+  lsSet("rr_profile_me",JSON.stringify({name:"Alex Morgan",role:"Insurance Broker",mobile:"021 000 0000",phone:"021 000 0000",email:"alex@example.co.nz"}));
+  lsSet("rr_owner","Alex Morgan");lsSet("bd_startdone","1");lsSet("bd_toured","1");lsSet("bd_mailmode","eml");
+  PROV={name:"demo",db:db,mcp:mkMcp("device",null),assets:memAssets(),names:{"me":"Alex Morgan"}};
+  finish();
+  try{await db.doc("config/firm").set({firm:"Sample Brokers Ltd",fsp:"FSP000000",portal:"",accent:""});await seedDemo(true);await seedStory(db);await loadProfile()}catch(e){}
+  window.__BD_DEMO_READY=true;try{window.dispatchEvent(new Event("bd-demo-ready"))}catch(e){}
+}
+async function seedStory(db){
+  var iso=function(d){var t=new Date();t.setDate(t.getDate()+d);return t.toISOString()},L=function(){var a=[];for(var i=0;i<arguments.length;i+=2)a.push({t:iso(arguments[i]),txt:arguments[i+1],by:"me"});return a};
+  var mon=ymd(0).slice(0,8);
+  await db.doc("renewals/demo_r0").update({industry:"Plumbers, gasfitters and drainlayers",address:"5 Sir William Pickering Drive, Burnside, Christchurch",phone:"021 555 0101",email:"sam@harbourview.example",log:L(-20,"Added to Broker Desk",-12,"Renewal information request sent to the client",-5,"Chase sent: still waiting on the information")});
+  await db.doc("renewals/demo_r1").update({industry:"Orchards, vineyards and nurseries",address:"120 Wrights Road, Addington, Christchurch",geo:{x:172.59699,y:-43.54176},site:"land parcel 8,053 m2; building footprint 673 m2 in 1 building; Christchurch City 200-year flood extent: within about 20 m of the mapped area",psum:"Packhouse and coolstore, steel frame on concrete floor, built 2008. Monitored alarm and sprinklers. No claims in five years.",dAnswersIn:ymd(-9),log:L(-30,"Added to Broker Desk",-14,"Meeting completed, client confirmed the information",-9,"Submissions sent to 3 underwriters")});
+  await db.doc("renewals/demo_r3").update({industry:"Food and beverage manufacturing",address:"100 Moorhouse Avenue, Addington, Christchurch",log:L(-40,"Added to Broker Desk",-25,"Client returned the renewal form",-18,"Submissions sent to 2 underwriters",-2,"Second quote received")});
+  await db.doc("renewals/demo_r4").update({industry:"Builders and carpenters",log:L(-35,"Added to Broker Desk",-10,"Quotes compared",-6,"Recommendation sent: Sample Insurer A")});
+  await db.doc("renewals/demo_r6").set({client:"Lakeside Joinery Ltd",type:"Commercial",contact:"Aroha King",email:"aroha@lakeside.example",industry:"Joinery, glazing and cabinetmaking",lines:"Material damage, Liability, Business interruption",sum:750000,prem:9300,bPrem:9640,date:ymd(-4),owner:"Alex Morgan",status:"Renewed",statusAt:iso(-6),insurer:"Sample Insurer A",dBound:mon+"02",inc:1446,incFee:250,dInvoiced:mon+"03",next:"",quotes:[],files:[],log:L(-50,"Added to Broker Desk",-20,"Quotes compared",-8,"Client accepted Sample Insurer A",-6,"Renewed and sent to processing")});
+  await db.doc("prospects/demo_p4").set({name:"Riverside Dental",contact:"Dr Mei Chen",phone:"",email:"",source:"Referral",referrer:"Lakeside Joinery Ltd",type:"Commercial",lines:"Material damage, Liability",est:8200,pace:"Standard",stage:"Won",stageAt:iso(-3),created:iso(-30),closedAt:iso(-3),wonPrem:8200,inc:1230,incFee:150,tasks:[],log:[]});
+  await db.doc("config/targets").set({inc:8000,prem:30000});
+}
+function exitDemo(){location.href=location.pathname+location.search}
 function memAssets(){var mem={};return{upload:async function(blob,o){var id="f"+newId();mem[id]=blob;return{id:id,url:"/_blob/"+id,sizeBytes:blob.size,contentType:(o&&o.type)||blob.type||"application/octet-stream"}},delete:async function(id){delete mem[id]},open:async function(id){return mem[id]?URL.createObjectURL(mem[id]):null}}}
 
 /* ---------- backup and restore: one file holds everything ---------- */
@@ -850,13 +931,13 @@ async function startMs(interactive){
 function finish(){
   ungate();resolveReady(PROV);
   var bar=el('<div id="shimbar" style="text-align:center;font-size:12px;color:var(--muted);margin:6px 0 40px"></div>');
-  bar.innerHTML=(PROV.name==="device"?'<span id="shimstate"></span> ':'Signed in as '+esc(ME.name||ME.email)+'. ')+'<button type="button" id="shimout" style="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline">'+(PROV.name==="device"?"Back up now":"Sign out")+'</button>';
+  bar.innerHTML=(PROV.name==="demo"?'<b>Demo with made-up clients.</b> Nothing here is saved or sent. ':PROV.name==="device"?'<span id="shimstate"></span> ':'Signed in as '+esc(ME.name||ME.email)+'. ')+'<button type="button" id="shimout" style="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline">'+(PROV.name==="demo"?"Exit demo":PROV.name==="device"?"Back up now":"Sign out")+'</button>';
   document.body.appendChild(bar);
   var sb=document.createElement("button");sb.type="button";sb.id="shimset";sb.textContent="Settings";sb.style.cssText="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;margin-right:12px";bar.insertBefore(sb,document.getElementById("shimout"));sb.onclick=openSettings;
   drawBar();(async function(){if(PROV.name==="device")await seedDemo(false);await loadProfile()})();
-  document.getElementById("shimout").onclick=function(){if(PROV.name==="device")backupNow();else PROV.signOut()};
+  document.getElementById("shimout").onclick=function(){if(PROV.name==="demo")exitDemo();else if(PROV.name==="device")backupNow();else PROV.signOut()};
   /* the page's own Back up button gives the full backup on this device */
-  document.addEventListener("click",function(e){if(PROV.name==="device"&&e.target&&e.target.id==="backup"){e.stopImmediatePropagation();e.preventDefault();var m=document.getElementById("more");if(m)m.open=false;backupNow()}},true);
+  document.addEventListener("click",function(e){if(PROV.name==="demo"&&e.target&&(e.target.id==="backup"||e.target.id==="exp"||e.target.id==="imp")){e.stopImmediatePropagation();e.preventDefault();var dm=document.getElementById("more");if(dm)dm.open=false;toastMsg("Backups and imports are switched off in the demo.");return}if(PROV.name==="device"&&e.target&&e.target.id==="backup"){e.stopImmediatePropagation();e.preventDefault();var m=document.getElementById("more");if(m)m.open=false;backupNow()}},true);
 }
 function ago(iso){var m=Math.floor((Date.now()-new Date(iso))/6e4);return m<1?"just now":m<60?m+" min ago":m<1440?Math.floor(m/60)+" hr ago":Math.floor(m/1440)+" day"+(m<2880?"":"s")+" ago"}
 function drawBar(){
@@ -1020,6 +1101,7 @@ function boot(){
     gate(titleHtml()+'<p style="margin:0 0 8px;font-weight:600">Broker Desk can’t run from a downloaded file on a phone or tablet</p><p style="margin:0 0 10px">Phones open one file at a time, so the rest of the app can’t load and nothing you enter would be kept.</p><p style="margin:0 0 10px"><b>On a phone:</b> open Broker Desk from its web address, then use your browser’s <b>Add to Home screen</b> so it sits with your other apps.</p><p style="margin:0;color:var(--muted)"><b>On a computer:</b> opening index.html from the folder works as it is.</p>');
     return;
   }
+  if(window.__BD_DEMO){startDemoMode();return}
   if(readInvite())return;
   var mode=lsGet("rr_mode");
   if(mode==="device"||mode==="demo"){lsSet("rr_mode","device");startDevice();return}
@@ -1028,7 +1110,7 @@ function boot(){
   startGate();
 }
 window.__DM=function(n){return PROV&&PROV.name==="ms"&&lsGet("bd_msmail")!=="device"?(n>1?"Open Outlook, check them and send them.":"Open Outlook, check it and send it."):window.BDDevice.msg(n)};
-window.__BDHOST={removeSamples:function(){return removeDemo()},backedUp:function(){return !!(BK.dir||lsGet("bd_backup"))},backup:function(){return backupNow()},settings:function(){openSettings()},mode:function(){return PROV?PROV.name:""}};
+window.__BDHOST={exitDemo:exitDemo,startDemo:function(){location.href=location.pathname+location.search+"#demo";location.reload()},removeSamples:function(){return removeDemo()},backedUp:function(){return !!(BK.dir||lsGet("bd_backup"))},backup:function(){return backupNow()},settings:function(){openSettings()},mode:function(){return PROV?PROV.name:""}};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 })();
 </script>
@@ -4001,6 +4083,9 @@ var css=document.createElement("style");css.textContent=[
 ".sci{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.sct{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:700}.sci.ok .sct{background:var(--accent);border-color:var(--accent);color:#fff}.scm{flex:1;min-width:0}.scm b{display:block;font-weight:600}.scm small{color:var(--muted)}.sci.ok .scm b{color:var(--muted);font-weight:500}.scd{color:var(--muted);font-size:13px}",
 "#bdtour{position:fixed;inset:0;z-index:950}#bdtour .th{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(10,20,16,.62);transition:all .18s ease;pointer-events:none}#bdtour .tc{position:fixed;background:var(--surface);color:var(--fg);border-radius:12px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,.35)}#bdtour .tt{font-size:16px}#bdtour .td{margin:6px 0 12px;line-height:1.5}#bdtour .tb{display:flex;gap:6px;align-items:center}#bdtour .tn{color:var(--muted);font-size:12.5px}",
 "@media (prefers-reduced-motion:reduce){#bdtour .th{transition:none}}",
+"#bdtour{z-index:2147483100}#bdtour .th.none{box-shadow:none}#bdtour .tc.ld{opacity:.75}#bdtour .tch{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 2px}#bdtour .td p{margin:0 0 8px}#bdtour .td p:last-child{margin:0}#bdtour .tb{flex-wrap:wrap;row-gap:6px}#bdtour .tn{flex:1 0 100%}#bdtour .tb>span[style]{display:none}#bdtour .tb .btn.pri{margin-left:auto}",
+"#bdtour .tm{display:flex;flex-direction:column;gap:2px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px;max-height:40vh;overflow:auto}#bdtour .tm button{text-align:left;background:none;border:0;padding:7px 8px;border-radius:8px;font:inherit;color:inherit;cursor:pointer}#bdtour .tm button:hover,#bdtour .tm button[aria-current=true]{background:var(--line)}",
+"#demobar{position:sticky;top:0;z-index:15;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));padding-top:calc(8px + env(safe-area-inset-top,0px));background:#fff4d6;color:#3d2a00;border-bottom:1px solid #e8c66a;font-size:13.5px}#demobar .dl{font-weight:800;letter-spacing:.08em;background:#3d2a00;color:#fff4d6;border-radius:5px;padding:2px 7px;font-size:11.5px}#demobar .dt{flex:1 1 180px;min-width:0}#demobar .btn{color:#3d2a00;border-color:#c9a54a}#demobar .btn.pri{background:#3d2a00;color:#fff4d6;border-color:#3d2a00}",
 "@media(max-width:700px){.wrap h1{padding-right:66px;overflow-wrap:anywhere}}","#scopebar{margin:12px 0 2px}#scopebar .chip i{font-style:normal;opacity:.7;margin-left:4px}#scopebar .chip[aria-pressed=true]{background:var(--accent);color:var(--accent-fg,#fff);border-color:var(--accent)}","@media(max-width:640px){.srow{display:flex;flex-wrap:wrap}.srow .tt{flex:1 1 0;min-width:60%}.srow .sbtns{flex:1 1 100%;justify-content:flex-start}}"
 ].join("\n");document.head.appendChild(css);
 
@@ -4026,11 +4111,11 @@ X.startMeeting=function(id){
   var p=r?{rid:id,client:r.client,contact:r.contact,phone:r.phone,email:r.email,address:r.address,date:r.date,insurer:r.insurer,prem:r.prem,type:r.type,industry:r.industry,at:Date.now()}:null;
   if(MEET)closeMeet();
   var w=document.createElement("div");w.id="bdmeet";w.setAttribute("role","dialog");w.setAttribute("aria-label","Meeting Guide");
-  w.innerHTML='<div class="mbar"><b>'+(r?"Meeting: "+esc(r.client):"Meeting Guide")+'</b><a class="btn sm" id="bdmeetnew" href="meeting-guide.html" target="_blank" rel="noopener">Open in a new tab</a><button class="btn sm pri" type="button" id="bdmeetx">Close</button></div><p class="note mhint" id="bdmeethint" hidden>If the guide doesn’t appear here, use Open in a new tab. It saves back to this client the same way.</p><iframe title="Meeting Guide" src="meeting-guide.html"></iframe>';
+  w.innerHTML='<div class="mbar"><b>'+(r?"Meeting: "+esc(r.client):"Meeting Guide")+'</b>'+(window.__BD_DEMO?'':'<a class="btn sm" id="bdmeetnew" href="meeting-guide.html" target="_blank" rel="noopener">Open in a new tab</a>')+'<button class="btn sm pri" type="button" id="bdmeetx">Close</button></div><p class="note mhint" id="bdmeethint" hidden>If the guide doesn’t appear here, use Open in a new tab. It saves back to this client the same way.</p><iframe title="Meeting Guide" src="meeting-guide.html'+(window.__BD_DEMO?'#demo':'')+'"></iframe>';
   document.body.appendChild(w);document.documentElement.style.overflow="hidden";
   var fr=w.querySelector("iframe");MEET={el:w,fr:fr,p:p,ready:false};
   /* the new-tab route picks the client up from here */
-  w.querySelector("#bdmeetnew").addEventListener("click",function(){if(p)R.safeSet("bd_meet",JSON.stringify(p))});
+  var nb=w.querySelector("#bdmeetnew");if(nb)nb.addEventListener("click",function(){if(p)R.safeSet("bd_meet",JSON.stringify(p))});
   w.querySelector("#bdmeetx").onclick=closeMeet;
   MEET.t=setTimeout(function(){if(MEET&&!MEET.ready)$("bdmeethint").hidden=false},5000);
 };
@@ -4071,7 +4156,7 @@ X.importMeeting=async function(o){
 function idb(){return new Promise(function(res,rej){try{var rq=indexedDB.open("brokerdesk",1);rq.onupgradeneeded=function(){var d=rq.result;if(!d.objectStoreNames.contains("kv"))d.createObjectStore("kv");if(!d.objectStoreNames.contains("files"))d.createObjectStore("files")};rq.onsuccess=function(){res(rq.result)};rq.onerror=function(){rej(rq.error)}}catch(e){rej(e)}})}
 var busyInbox=false;
 async function checkInbox(){
-  if(busyInbox||!R.coll()||!R.canWrite())return;busyInbox=true;
+  if(window.__BD_DEMO||busyInbox||!R.coll()||!R.canWrite())return;busyInbox=true;
   try{var d=await idb();
     var keys=await new Promise(function(res,rej){var q=d.transaction("kv","readonly").objectStore("kv").getAllKeys();q.onsuccess=function(){res(q.result||[])};q.onerror=function(){rej(q.error)}});
     keys=keys.filter(function(k){return String(k).indexOf("inbox:")===0});
@@ -4161,7 +4246,8 @@ X.help=function(){
    +(dev?'<li>Your work is kept on this device. Use <b>Back up now</b> at the bottom of the page each week, and keep the file somewhere safe. To move to another computer, restore that file there.</li>':'<li>Your work is kept in the firm\u2019s shared BrokerDesk folder in Microsoft 365, so every broker sees the same clients.</li>')
    +'<li>Find anything fast with <b>Find</b> or Ctrl+K.</li>'
    +'<li>The site look-up in the Meeting Guide adds the land parcel, building footprint, flood layers and a satellite link to the underwriter submission.</li></ul></div>';
-  R.openSheet2("Help",h,'<button class="btn pri" type="button" id="helptour">Show me around</button><button class="btn" type="button" id="helpset">Settings</button>');
+  R.openSheet2("Help",h,'<button class="btn pri" type="button" id="helpdemo">'+(window.__BD_DEMO?"Restart guided demo":"Watch the demo")+'</button><button class="btn" type="button" id="helptour">Quick tour</button><button class="btn" type="button" id="helpset">Settings</button>');
+  var db_=$("helpdemo");if(db_)db_.onclick=function(){R.closeSheet2();X.demo(0)};
   var tb=$("helptour");if(tb)tb.onclick=function(){R.closeSheet2();X.tour()};
   var b=$("helpset");if(b)b.onclick=function(){R.closeSheet2();if(window.__BDHOST)window.__BDHOST.settings()};
 };
@@ -4170,7 +4256,7 @@ X.help=function(){
 function isSample(r){return /^demo_/.test(r.id||"")||/^demo_/.test(r.fromPros||"")}
 X.startCard=function(sec){
   var b=$("startcard");if(!b)return;sec=sec||R.safeGet("rr_sec")||"today";
-  if(sec!=="today"||R.safeGet("bd_startdone")==="1"||!R.coll()){b.hidden=true;return}
+  if(window.__BD_DEMO||sec!=="today"||R.safeGet("bd_startdone")==="1"||!R.coll()){b.hidden=true;return}
   var docs=R.docs(),real=docs.filter(function(r){return !isSample(r)}),samples=docs.length-real.length,H=window.__BDHOST,dev=H&&H.mode()==="device";
   var p=R.getProfile(),ub=(R.ub()||[]).filter(function(u){return !/^Sample /.test(u.n||"")});
   var items=[
@@ -4196,43 +4282,134 @@ document.addEventListener("click",function(e){var b=e.target.closest&&e.target.c
 R.on("data",function(){X.startCard()});
 window.addEventListener("focus",function(){X.startCard()});
 
-/* ---------- guided tour ---------- */
-var TOUR=[
-  ['#appnav [data-sec="today"]',"Today","Start here each morning. It lists what needs you now: chases due, quotes to review, clients waiting on you."],
-  ['#appnav [data-sec="prospects"]',"Prospects","People who aren’t clients yet. When one says yes, they become a client with one tap."],
-  ['#appnav [data-sec="renewals"]',"Active work","Every open renewal, grouped by how far along it is."],
-  ['#appnav [data-sec="calendar"]',"Calendar","Renewals in date order, 90, 60 and 30 days out, with the next job for each."],
-  ['#appnav [data-sec="clients"]',"Clients","Everyone you look after and their history."],
-  ['#capturelink',"Start meeting","Sitting with a client? This walks you through the questions and saves the answers to their record."],
-  ['#uxfindbtn',"Find","Jump to any client, or add a new one, from anywhere."],
-  ['#helpbtn',"Help","Stuck? Help explains the screen you are on, and brings this tour back."],
-  ['#shimbar',"Backup and Settings","Your work is saved as you go. Back up from here, and change your details in Settings."],
-  [null,"That’s it","Open any client and the green button is always the next job. Broker Desk writes the emails. You check them and press send."]
-];
-var tourEl=null;
-X.tour=function(){
-  if(tourEl)return;var i=0;R.safeSet("bd_tour","");
-  tourEl=document.createElement("div");tourEl.id="bdtour";tourEl.innerHTML='<div class="th"></div><div class="tc" role="dialog" aria-live="polite"><b class="tt"></b><p class="td"></p><div class="tb"><span class="tn"></span><span style="flex:1"></span><button type="button" class="btn sm" data-t="skip">Skip</button><button type="button" class="btn sm" data-t="back">Back</button><button type="button" class="btn sm pri" data-t="next">Next</button></div></div>';
-  document.body.appendChild(tourEl);
-  var hole=tourEl.querySelector(".th"),card=tourEl.querySelector(".tc");
-  function end(){if(!tourEl)return;tourEl.remove();tourEl=null;window.removeEventListener("resize",place);R.safeSet("bd_toured","1");X.startCard()}
+/* ---------- guided walk-through engine (used by the quick tour and the demo) ---------- */
+var guide=null,DEMO=!!window.__BD_DEMO;
+function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
+async function waitFor(fn,ms){var t=Date.now();while(Date.now()-t<(ms||4000)){var v=null;try{v=fn()}catch(e){}if(v)return v;await wait(80)}return null}
+function frameDoc(){var f=document.querySelector("#bdmeet iframe");try{return f&&f.contentDocument}catch(e){return null}}
+function target(st){
+  if(!st.sel&&!st.fsel)return null;
+  if(st.fsel){var d=frameDoc(),f=document.querySelector("#bdmeet iframe");if(!d||!f)return null;var e=typeof st.fsel==="function"?st.fsel(d):d.querySelector(st.fsel);if(!e)return null;return {el:e,frame:f}}
+  var el=typeof st.sel==="function"?st.sel():document.querySelector(st.sel);
+  if(!el||(!el.offsetParent&&getComputedStyle(el).position!=="fixed"))return null;return {el:el}
+}
+function rectOf(t){var r=t.el.getBoundingClientRect();if(!t.frame)return r;var fr=t.frame.getBoundingClientRect();return {left:fr.left+r.left,top:fr.top+r.top,width:r.width,height:r.height,right:fr.left+r.right,bottom:fr.top+r.bottom}}
+X.guide=function(steps,opts){
+  opts=opts||{};if(guide)guide.end(true);
+  var i=Math.max(0,Math.min(steps.length-1,opts.start||0)),el=document.createElement("div"),busy=false,tok=0;
+  el.id="bdtour";el.innerHTML='<div class="th"></div><div class="tc" role="dialog" aria-modal="true" aria-labelledby="bdtt"><div class="tch"></div><b class="tt" id="bdtt"></b><div class="td"></div><div class="tb"><span class="tn"></span><span style="flex:1"></span>'+(opts.chapters?'<button type="button" class="btn sm" data-t="menu">Chapters</button>':'')+'<button type="button" class="btn sm" data-t="skip"></button><button type="button" class="btn sm" data-t="back">Back</button><button type="button" class="btn sm pri" data-t="next">Next</button></div><div class="tm" hidden></div></div>';
+  document.body.appendChild(el);
+  var hole=el.querySelector(".th"),card=el.querySelector(".tc");
+  el.querySelector('[data-t="skip"]').textContent=opts.skipLabel||"Skip";
   function place(){
-    var st=TOUR[i],t=st[0]?document.querySelector(st[0]):null;
-    if(t&&t.offsetParent===null)t=null;
-    if(t){try{t.scrollIntoView({block:"center",inline:"center"})}catch(e){}}
-    var r=t?t.getBoundingClientRect():null,vw=window.innerWidth,vh=window.innerHeight;
-    if(r){hole.style.cssText="left:"+(r.left-6)+"px;top:"+(r.top-6)+"px;width:"+(r.width+12)+"px;height:"+(r.height+12)+"px"}else{hole.style.cssText="left:50%;top:40%;width:0;height:0"}
-    tourEl.querySelector(".tt").textContent=st[1];tourEl.querySelector(".td").textContent=st[2];tourEl.querySelector(".tn").textContent=(i+1)+" of "+TOUR.length;
-    tourEl.querySelector('[data-t="back"]').hidden=i===0;tourEl.querySelector('[data-t="skip"]').hidden=i===TOUR.length-1;tourEl.querySelector('[data-t="next"]').textContent=i===TOUR.length-1?"Done":"Next";
-    var cw=Math.min(340,vw-24);card.style.width=cw+"px";var ch=card.offsetHeight||150,left,top;
-    if(r){left=Math.max(12,Math.min(vw-cw-12,r.left+r.width/2-cw/2));top=r.bottom+14;if(top+ch>vh-12)top=Math.max(12,r.top-ch-14)}else{left=(vw-cw)/2;top=Math.max(12,vh*0.4-ch/2)}
+    var st=steps[i],t=target(st);
+    if(t){try{t.el.scrollIntoView({block:"center",inline:"nearest"})}catch(e){}}
+    var r=t?rectOf(t):null,vw=window.innerWidth,vh=window.innerHeight,pad=st.pad==null?6:st.pad;
+    if(r){hole.style.cssText="left:"+(r.left-pad)+"px;top:"+(r.top-pad)+"px;width:"+(r.width+pad*2)+"px;height:"+(r.height+pad*2)+"px";hole.classList.remove("none")}
+    else{hole.style.cssText="left:50%;top:45%;width:0;height:0";hole.classList.toggle("none",!!st.clear)}
+    var cw=Math.min(380,vw-24);card.style.width=cw+"px";var ch=card.offsetHeight||170,left,top;
+    if(st.dock||(r&&r.height>vh*0.55)){left=(vw-cw)/2;top=vh-ch-12-(window.visualViewport?0:0);if(r&&r.top>vh/2)top=12}
+    else if(r){left=Math.max(12,Math.min(vw-cw-12,r.left+r.width/2-cw/2));top=r.bottom+pad+12;if(top+ch>vh-12)top=Math.max(12,r.top-pad-ch-12);if(top<12)top=12}
+    else{left=(vw-cw)/2;top=Math.max(12,vh*0.42-ch/2)}
     card.style.left=left+"px";card.style.top=top+"px";
   }
-  tourEl.addEventListener("click",function(e){var b=e.target.closest("[data-t]");if(!b)return;var a=b.dataset.t;if(a==="skip")return end();if(a==="back"&&i>0)i--;else if(a==="next"){if(i===TOUR.length-1)return end();i++}place();setTimeout(place,60)});
-  document.addEventListener("keydown",function k(e){if(!tourEl){document.removeEventListener("keydown",k);return}if(e.key==="Escape")end()});
-  window.addEventListener("resize",place);place();setTimeout(place,80);
+  async function show(){
+    var my=++tok,st=steps[i];busy=true;card.classList.add("ld");
+    el.querySelector(".tm").hidden=true;
+    try{if(st.go)await st.go()}catch(e){}
+    if(my!==tok)return;
+    if(st.sel||st.fsel)await waitFor(function(){return target(st)},st.wait||3000);
+    if(my!==tok)return;
+    var c=steps[i].ch||"";el.querySelector(".tch").textContent=c;el.querySelector(".tch").hidden=!c;
+    el.querySelector(".tt").textContent=st.t;el.querySelector(".td").innerHTML=st.d;
+    el.querySelector(".tn").textContent=(i+1)+" of "+steps.length;
+    el.querySelector('[data-t="back"]').hidden=i===0;el.querySelector('[data-t="skip"]').hidden=i===steps.length-1&&!opts.keepSkip;
+    el.querySelector('[data-t="next"]').textContent=i===steps.length-1?(opts.doneLabel||"Done"):"Next";
+    busy=false;card.classList.remove("ld");place();setTimeout(place,120);setTimeout(place,450);
+    try{el.querySelector('[data-t="next"]').focus({preventScroll:true})}catch(e){}
+    if(opts.onStep)opts.onStep(i);
+  }
+  function menu(){
+    var m=el.querySelector(".tm"),seen={},h="";
+    steps.forEach(function(s,k){if(s.ch&&!seen[s.ch]){seen[s.ch]=1;h+='<button type="button" data-go="'+k+'"'+(steps[i].ch===s.ch?' aria-current="true"':'')+'>'+esc(s.ch)+'</button>'}});
+    m.innerHTML=h;m.hidden=!m.hidden;place();
+  }
+  var api={end:function(quiet){if(!guide)return;tok++;el.remove();guide=null;window.removeEventListener("resize",place);document.removeEventListener("keydown",key);if(!quiet&&opts.onEnd)opts.onEnd(i>=steps.length-1)},at:function(){return i}};
+  el.addEventListener("click",function(e){var b=e.target.closest("[data-t],[data-go]");if(!b)return;
+    if(b.dataset.go){i=Number(b.dataset.go);show();return}
+    var a=b.dataset.t;if(a==="menu")return menu();if(a==="skip")return api.end();if(busy&&a!=="back")return;
+    if(a==="back"&&i>0){i--;show()}else if(a==="next"){if(i===steps.length-1)return api.end();i++;show()}});
+  function key(e){if(e.key==="Escape")api.end();else if(e.key==="ArrowRight"&&!busy&&i<steps.length-1){i++;show()}else if(e.key==="ArrowLeft"&&i>0){i--;show()}}
+  document.addEventListener("keydown",key);window.addEventListener("resize",place);
+  guide=api;show();return api;
 };
-R.on("data",function(){if(R.safeGet("bd_tour")==="1"&&!tourEl)setTimeout(function(){if(R.safeGet("bd_tour")==="1"&&!document.getElementById("shimgate")||R.safeGet("bd_tour")==="1"&&document.getElementById("shimgate").hidden)X.tour()},700)});
+
+/* ---------- quick tour of the screen ---------- */
+var TOUR=[
+  {sel:'#appnav [data-sec="today"]',t:"Today",d:"Start here each morning. It lists what needs you now: chases due, quotes to review, clients waiting on you."},
+  {sel:'#appnav [data-sec="prospects"]',t:"Prospects",d:"People who aren’t clients yet. When one says yes, they become a client with one tap."},
+  {sel:'#appnav [data-sec="renewals"]',t:"Active work",d:"Every open renewal, grouped by how far along it is."},
+  {sel:'#appnav [data-sec="calendar"]',t:"Calendar",d:"Renewals in date order, 90, 60 and 30 days out, with the next job for each."},
+  {sel:'#appnav [data-sec="clients"]',t:"Clients",d:"Everyone you look after and their history."},
+  {sel:'#capturelink',t:"Start meeting",d:"Sitting with a client? This walks you through the questions and saves the answers to their record."},
+  {sel:'#uxfindbtn',t:"Find",d:"Jump to any client, or add a new one, from anywhere."},
+  {sel:'#helpbtn',t:"Help",d:"Stuck? Help explains the screen you are on. It also has the full demo, with sample clients."},
+  {sel:'#shimbar',t:"Backup and Settings",d:"Your work is saved as you go. Back up from here, and change your details in Settings."},
+  {t:"That’s it",d:"Open any client and the green button is always the next job. Broker Desk writes the emails. You check them and press send."}
+];
+X.tour=function(){R.safeSet("bd_tour","");X.guide(TOUR,{onEnd:function(){R.safeSet("bd_toured","1");X.startCard()}})};
+R.on("data",function(){if(DEMO||guide)return;if(R.safeGet("bd_tour")==="1"){var g=document.getElementById("shimgate");if(!g||g.hidden)setTimeout(function(){if(R.safeGet("bd_tour")==="1"&&!guide)X.tour()},700)}});
+
+/* ---------- the demo: a guided story through the whole job, on made-up clients ---------- */
+function closeAll(){try{if(MEET)closeMeet()}catch(e){}try{R.closeSheet2()}catch(e){}try{R.closeSheet()}catch(e){}var p=document.getElementById("bddraftprev");if(p)p.remove();var m=document.getElementById("more");if(m)m.open=false;var f=document.getElementById("uxfbox");if(f&&!f.hidden){var x=f.querySelector("[data-close],.x");if(x)x.click()}}
+async function sec(s){closeAll();var b=document.querySelector('#appnav [data-sec="'+s+'"]');if(b)b.click();await wait(150);window.scrollTo(0,0)}
+async function client(id,tab){closeAll();R.openRenewal(id);await waitFor(function(){return document.getElementById("uxnext")});if(tab){var t=await waitFor(function(){return document.querySelector('[data-tab="'+tab+'"]')});if(t)t.click()}await wait(150)}
+async function sheetBtn(id,btn,ready){await client(id);var b=await waitFor(function(){return document.getElementById(btn)});if(b)b.click();if(ready)await waitFor(function(){return document.querySelector(ready)},4000)}
+async function meeting(addr){
+  if(!MEET||!MEET.p||MEET.p.rid!=="demo_r0"){closeAll();X.startMeeting("demo_r0")}
+  var d=await waitFor(function(){var x=frameDoc();return x&&x.querySelector('input[data-id="name"]')&&x.querySelector('input[data-id="name"]').value?x:null},8000);
+  if(!d||!addr)return;
+  var a=d.querySelector('input[data-id="address"]');
+  if(a&&!d.querySelector(".autop")){a.value="5 Sir William Pickering";a.dispatchEvent(new Event("input",{bubbles:true}));var o=await waitFor(function(){return d.querySelector(".aci")},5000);if(o){o.click();await waitFor(function(){return d.querySelector(".autop")},4000)}}
+  if(addr==="photo")await waitFor(function(){return d.querySelector("img.sitemap")||!/Preparing/.test((d.querySelector(".autop [role=status]")||{}).textContent||"")},9000);
+}
+function linzOn(){try{return !!(localStorage.getItem("bd_linzkey")||localStorage.getItem("bd_ldskey"))}catch(e){return false}}
+var DEMO_STEPS=[
+  {ch:"Welcome",t:"Welcome to the Broker Desk demo",d:"<p>This is Broker Desk with made-up clients, so you can see the whole job from first contact to income. Nothing you do here is saved, and no emails are sent.</p><p>Press <b>Next</b> to walk through it, or <b>Explore</b> to click around yourself. <b>Guided demo</b> at the top brings this back.</p>",go:function(){return sec("today")}},
+  {ch:"Your day",sel:"#sec-today",t:"Today: your to-do list",d:"Everything that needs you now, worked out from your clients: chases that are due, quotes to review, decisions to follow up. Nobody has to keep a separate list.",go:function(){return sec("today")}},
+  {ch:"Your day",sel:"#sec-calendar .calgrp",t:"Calendar: what’s coming up",d:"Every renewal in date order, grouped 30, 60 and 90 days out. The right-hand side shows the next job for each, so you can start early on the ones that need it.",go:function(){return sec("calendar")}},
+  {ch:"New business",sel:"#sec-prospects",t:"Prospects",d:"People who aren’t clients yet, from first lead through to a quote. Each has follow-up dates. When one says yes, it becomes a client with its details carried across, and the income shows up straight away.",go:function(){return sec("prospects")}},
+  {ch:"New business",sel:"#sec-renewals",t:"Active work",d:"Every open renewal, grouped by stage: to start, waiting on the client, out with underwriters, quotes in, waiting on a decision. You can see the whole book at a glance.",go:function(){return sec("renewals")}},
+  {ch:"A client",sel:"#uxnext",t:"The client page",d:"Open any client and the progress line shows where the renewal is. The <b>green button is always the next job</b>, so nobody has to remember what comes next.",go:function(){return client("demo_r0")}},
+  {ch:"A client",sel:function(){var t=document.querySelector('[data-tab="details"]');return t&&t.parentElement},t:"Everything in one place",d:"Details, cover, quotes, files and notes each have a tab. <b>Timeline</b> records every step automatically: who did what and when. Changes save as you type.",go:function(){return client("demo_r0")}},
+  {ch:"A client",sel:"#hist",t:"The timeline",d:"Each email drafted, each status change and each meeting is logged here without you doing anything. Useful for compliance and for picking up a colleague’s client.",go:function(){return client("demo_r0","timeline")}},
+  {ch:"Getting the information",sel:"#uxnext",t:"Two ways to get the information",d:"Send the client a form to fill in themselves, or sit with them and use the <b>Meeting Guide</b>. Either way the answers land on this record.",go:function(){return client("demo_r0")}},
+  {ch:"Getting the information",fsel:"#main",dock:true,pad:0,t:"The Meeting Guide",d:"Started from the client, so their details are already filled in. It asks only the questions that fit their industry, one screen at a time, on a phone or laptop.",go:function(){return meeting(false)}},
+  {ch:"Getting the information",fsel:".autop",dock:true,t:"Site look-up",d:"Pick the address and Broker Desk pulls the land parcel, building footprint and council flood layers from open data, plus a satellite link. All of it goes into the underwriter submission.",go:function(){return meeting(true)}},
+  {ch:"Getting the information",fsel:function(d){return d.querySelector("img.sitemap")||d.querySelector(".autop")},dock:true,t:"Site photo",d:"With free LINZ keys added, it also draws an aerial photo zoomed to the property, with the boundary and buildings outlined, and attaches it to the submission.",go:async function(){await meeting(linzOn()?"photo":true);var d=frameDoc();if(d&&linzOn()&&!d.querySelector("img.sitemap")){var b=d.querySelector('[data-act="ac_map"]');if(b){b.click();await waitFor(function(){return d.querySelector("img.sitemap")},9000)}}}},
+  {ch:"Getting the information",dock:true,clear:true,t:"Saved to the client",d:"At the end, <b>Save to Broker Desk</b> puts the answers, the submission PDF, photos, follow-ups and the next step on the client’s record. No retyping and no copying and pasting.",go:function(){return meeting(true)}},
+  {ch:"Going to market",sel:"#uwbody",t:"Submissions written for you",d:"Broker Desk writes the submission from what the client told you, including the site data and satellite link. Pick the underwriters and each gets their own draft, with the meeting PDF and site photo attached.",go:function(){return sheetBtn("demo_r1","puw","#uwbody")}},
+  {ch:"Going to market",sel:"#bddraftprev .bdp",t:"You check, you send",d:"Each draft opens in your own mail app (Outlook, Gmail or Apple Mail) for you to read and send. Broker Desk never sends anything by itself. In this demo it shows on screen instead.",go:async function(){await sheetBtn("demo_r1","puw","#uwbody");R.mcp().callTool("Outlook","create_draft",{to:["quotes@example.com"],subject:document.getElementById("uwsub")?document.getElementById("uwsub").value:"Renewal submission",body:document.getElementById("uwbody").value})}},
+  {ch:"Quotes",sel:".qg",t:"Quotes side by side",d:"Type each insurer’s terms as they come in. Premiums, excesses, earthquake excess and endorsements line up line by line, and totals with fees and GST are worked out for you.",go:function(){return sheetBtn("demo_r3","pterms",".qg")}},
+  {ch:"Quotes",sel:"#p2body",t:"The recommendation",d:"Tick the quote you recommend and Broker Desk builds the comparison for the client: a table, a graph and plain-English notes on each endorsement, ready to send as a draft.",go:function(){return sheetBtn("demo_r3","pcmp","#p2body")}},
+  {ch:"Placing and income",sel:"#sec-income",t:"Income",d:"When a renewal is placed, record the premium and commission and it flows here: income this month and year against your targets, what still needs invoicing and what’s unpaid.",go:function(){return sec("income")}},
+  {ch:"Finding things",sel:"#uxfindbtn",t:"Find anything",d:"Type part of a name to jump to any client or prospect, or add a new one. On a computer, Ctrl+K opens it from anywhere.",go:function(){return sec("clients")}},
+  {ch:"Finding things",sel:"#sec-clients",t:"Clients",d:"Everyone you look after, with every year’s renewal and their contact details together.",go:function(){return sec("clients")}},
+  {ch:"Your data",sel:"#shimbar",t:"Your work, kept safe",d:"Work is saved on your device as you go, with one-tap backup and automatic backup to OneDrive or Google Drive. A firm can instead share one database between brokers through Microsoft 365, with each broker seeing their own clients first.",go:async function(){await sec("today");window.scrollTo(0,document.body.scrollHeight)}},
+  {ch:"Your data",sel:"#helpbtn",t:"Help is always there",d:"Help explains whichever screen you are on, and brings back this demo or the quick tour.",go:function(){return sec("today")}},
+  {ch:"Finish",t:"That’s Broker Desk",d:"<p>Explore the sample clients as much as you like: open them, try the buttons, start a meeting.</p><p>When you’re ready, <b>Exit demo</b> at the top takes you back to set up with your own clients.</p>",go:function(){return sec("today")}}
+];
+X.demo=function(start){if(!DEMO){if(window.__BDHOST)window.__BDHOST.startDemo();return}
+  X.guide(DEMO_STEPS,{chapters:true,skipLabel:"Explore",doneLabel:"Finish",start:start||0,onStep:function(k){X.demoAt=k},onEnd:function(){closeAll();R.toast("Explore freely. Guided demo at the top brings the walk-through back.")}})};
+if(DEMO){
+  var bar=document.createElement("div");bar.id="demobar";bar.setAttribute("role","region");bar.setAttribute("aria-label","Demo");
+  bar.innerHTML='<span class="dl">DEMO</span><span class="dt">Made-up clients. Nothing is saved or sent.</span><button type="button" class="btn sm pri" id="demogo">Guided demo</button><button type="button" class="btn sm" id="demox">Exit demo</button>';
+  document.body.insertBefore(bar,document.body.firstChild);
+  document.getElementById("demogo").onclick=function(){X.demo(X.demoAt||0)};
+  document.getElementById("demox").onclick=function(){if(window.__BDHOST)window.__BDHOST.exitDemo()};
+  var startDemo=function(){if(!guide)setTimeout(function(){X.demo(0)},400)};
+  if(window.__BD_DEMO_READY)startDemo();else window.addEventListener("bd-demo-ready",startDemo,{once:true});
+}
 
 /* ---------- nav buttons ---------- */
 (function(){

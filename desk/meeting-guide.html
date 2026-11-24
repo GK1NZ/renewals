@@ -207,6 +207,28 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
   <button class="btn primary" id="next" type="button">Next</button>
 </div></nav>
 
+<script>
+/* Demo mode (#demo): everything this page stores goes to memory for this visit only, so the demo can never touch real work. */
+(function(){
+"use strict";
+var D=/^#demo\b/.test(location.hash||"");
+window.__BD_DEMO=D;
+if(!D||window.__BD_SHIM)return;window.__BD_SHIM=true;
+var ls=null;try{ls=window.localStorage}catch(e){}
+if(!ls)return;
+var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=Object.create(null);
+/* the LINZ keys can be read from real storage so the site photo works in the demo; they are never written back */
+var PASS={bd_linzkey:1,bd_ldskey:1};
+P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?g.call(this,key):null}return g.apply(this,arguments)};
+P.setItem=function(key,v){if(this===ls){mem[String(key)]=String(v);return}return s.apply(this,arguments)};
+P.removeItem=function(key){if(this===ls){delete mem[String(key)];return}return r.apply(this,arguments)};
+P.key=function(i){if(this===ls)return Object.keys(mem)[i]||null;return k.apply(this,arguments)};
+P.clear=function(){if(this===ls){mem=Object.create(null);return}return c.apply(this,arguments)};
+try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defineProperty(P,"length",{configurable:true,enumerable:true,get:function(){return this===ls?Object.keys(mem).length:lg.get.call(this)}})}catch(e){}
+/* no database on the device either */
+try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
+})();
+</script>
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/jspdf.umd.min.js"></script>
 <script>
@@ -288,6 +310,42 @@ function ics(inp){
   saveBlob("reminder.ics",new Blob([t],{type:"text/calendar"}));return{payload:{device:true}};
 }
 function msg(n){return mailMode()==="eml"?(n>1?"The draft files are in your downloads. Open each one, check it and send it.":"The draft file is in your downloads. Open it, check it and send it."):(n>1?"Tap each draft in the list at the bottom of the screen to open it in your mail app.":"Your mail app opens with the draft. Check it and send it.")}
+/* ---- demo: show drafts, files and reminders on screen instead of creating anything ---- */
+var DEMO=!!window.__BD_DEMO;
+var DQ=[],DI=0;
+/* several drafts made at once queue up, so each one can be looked at in turn */
+function demoBox(title,inner,after){
+  var o=document.getElementById("bddraftprev");if(!o){DQ=[];DI=0}
+  DQ.push({title:title,inner:inner,after:after});
+  if(!o){o=document.createElement("div");o.id="bddraftprev";o.setAttribute("role","dialog");
+    o.style.cssText="position:fixed;inset:0;z-index:2147482000;background:rgba(10,20,16,.45);display:flex;align-items:center;justify-content:center;padding:16px";
+    o.addEventListener("click",function(e){var a=e.target.dataset&&e.target.dataset.bdp;if(e.target===o||a==="x"){o.remove();DQ=[];return}if(a==="n"&&DI<DQ.length-1){DI++;draw()}else if(a==="p"&&DI>0){DI--;draw()}});
+    document.body.appendChild(o);}
+  draw();return o;
+}
+function draw(){
+  var o=document.getElementById("bddraftprev");if(!o)return;var it=DQ[DI],n=DQ.length,bs='border:1px solid var(--line,#ccd);background:none;border-radius:8px;padding:6px 12px;cursor:pointer;color:inherit;font:inherit';
+  o.setAttribute("aria-label",it.title);
+  o.innerHTML='<div class="bdp" style="background:var(--surface,#fff);color:var(--fg,var(--ink,#111));border-radius:14px;max-width:680px;width:100%;max-height:calc(100vh - 32px);display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35);font:14px/1.5 system-ui,sans-serif;overflow:hidden">'
+    +'<div style="padding:12px 16px;border-bottom:1px solid var(--line,#ccd);display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">'+esc(it.title)+(n>1?' <span style="font-weight:400;color:var(--muted,#667)">'+(DI+1)+' of '+n+'</span>':'')+'</b>'
+    +(n>1?'<button type="button" data-bdp="p" style="'+bs+'"'+(DI===0?' disabled':'')+'>Previous</button><button type="button" data-bdp="n" style="'+bs+'"'+(DI===n-1?' disabled':'')+'>Next</button>':'')
+    +'<button type="button" data-bdp="x" style="'+bs+'">Close</button></div>'
+    +'<div style="padding:12px 16px;overflow:auto">'+it.inner+'</div></div>';
+  if(it.after)it.after(o);
+}
+function demoDraft(inp){
+  var to=(inp.to||[]).join(", "),atts=inp.attachments||[];
+  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Email or Apple Mail) for you to check and send. Nothing is sent from here.</p>'
+    +'<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:0 0 10px"><span style="color:var(--muted,#667)">To</span><span style="overflow-wrap:anywhere">'+esc(to)+'</span>'+(inp.cc&&inp.cc.length?'<span style="color:var(--muted,#667)">Cc</span><span>'+esc(inp.cc.join(", "))+'</span>':'')+'<span style="color:var(--muted,#667)">Subject</span><b style="overflow-wrap:anywhere">'+esc(inp.subject||"")+'</b>'+(atts.length?'<span style="color:var(--muted,#667)">Attached</span><span>'+atts.map(function(a){return esc(a.filename)}).join(", ")+'</span>':'')+'</div>';
+  demoBox("Email draft to "+(to||"recipient"),head+(inp.htmlBody?'<iframe title="Email body" sandbox="" style="width:100%;height:46vh;border:1px solid var(--line,#ccd);border-radius:8px;background:#fff"></iframe>':'<pre style="white-space:pre-wrap;font:inherit;margin:0;border:1px solid var(--line,#ccd);border-radius:8px;padding:10px 12px">'+esc(inp.body||"")+'</pre>'),inp.htmlBody?function(o){var f=o.querySelector("iframe");if(f)f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:14px/1.5 system-ui,sans-serif;margin:12px">'+inp.htmlBody+'</body>'}:null);
+  return{payload:{demo:true}};
+}
+if(DEMO){
+  draft=function(inp){return demoDraft(inp||{})};
+  ics=function(inp){demoBox("Calendar reminder",'<p style="margin:0 0 8px">Demo: in real use this adds a reminder to your calendar.</p><p style="margin:0"><b>'+esc((inp&&inp.summary)||"")+'</b><br>'+esc(String((inp&&inp.startTime)||"").replace("T"," ").slice(0,16))+'</p>');return{payload:{demo:true}}};
+  saveBlob=function(name){demoBox("File",'<p style="margin:0">Demo: in real use <b>'+esc(name)+'</b> is saved to your downloads.</p>')};
+  msg=function(){return "In the demo the draft shows on screen. In real use it opens in your mail app."};
+}
 window.BDDevice={saveBlob:saveBlob,toEml:toEml,draft:draft,ics:ics,msg:msg,mailMode:mailMode,isPhone:isPhone};
 })();
 </script>
