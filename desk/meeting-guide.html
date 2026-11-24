@@ -1376,7 +1376,7 @@ function acPick(id,i){var o=AC.list[i],inp=document.getElementById(id);if(!o||!i
 /* ---------- live site hazards: council hazard maps, GNS active faults, LINZ ground height; NZ-wide address search ---------- */
 var HZ={seq:0,pend:false,sseq:0};
 var CCC='https://gis.ccc.govt.nz/server/rest/services/OpenData/',SDC='https://gis.selwyn.govt.nz/arcgis/rest/services/FutureSelwyn/Natural_Hazards/MapServer/',WMK='https://gisservices.waimakariri.govt.nz/arcgis/rest/services/Natural_Hazards/Natural_Hazards_Flood_Rasters/MapServer';
-function hzTsu(v){v=String(v||'');return /blue/i.test(v)?'Blue zone (sea, beaches and estuaries)':v?v+' zone':'In a zone';}
+function hzTsu(v){v=String(v||'');return /no zone|^none$/i.test(v)?'No':/blue/i.test(v)?'Blue zone (sea, beaches and estuaries)':v?v+' zone':'In a zone';}
 var HZLEG=['Very low','Low','Medium','High'],HZDEP=['0.1 to 0.25 m','0.25 to 0.5 m','0.5 to 0.75 m','0.75 to 1 m','More than 1 m'];
 /* which council maps apply, by the territorial authority LINZ gives for the address */
 var HZR={
@@ -1415,7 +1415,7 @@ async function hzCheck(c,a){
   if(c.f){var fj=await hzQ(c.u,a,'&outFields='+encodeURIComponent(c.f));var vals=(fj.features||[]).map(function(f){return f.attributes[c.f];}).filter(Boolean);
     if(!vals.length)return {l:c.l,v:c.none||'No',s:'clear'};
     if(c.worst)vals.sort(function(p,q){var i=c.worst.findIndex(function(w){return new RegExp(w,'i').test(p);}),k=c.worst.findIndex(function(w){return new RegExp(w,'i').test(q);});return (i<0?9:i)-(k<0?9:k);});
-    var v=vals[0];return {l:c.l,v:c.fmt?c.fmt(v):v,s:/blue|low|unlikely|very low/i.test(v)?'clear':'hit'};}
+    var v=vals[0];return {l:c.l,v:c.fmt?c.fmt(v):v,s:/blue|no zone|^none$|low|unlikely/i.test(v)?'clear':'hit'};}
   var cj=await hzQ(c.u,a,'&returnCountOnly=true');
   if(cj.count>0)return {l:c.l,v:'Yes, the address point is inside',s:'hit'};
   var nj=await hzQ(c.u,a,'&returnCountOnly=true&distance=20&units=esriSRUnit_Meter').catch(function(){return {count:0};});
@@ -1424,7 +1424,9 @@ async function hzCheck(c,a){
 function hzMetres(lat){var r=lat*Math.PI/180;return [111320*Math.cos(r),110540];}
 function hzSegDist(p,a,b){var dx=b[0]-a[0],dy=b[1]-a[1],t=dx||dy?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy):0;t=Math.max(0,Math.min(1,t));var x=a[0]+t*dx-p[0],y=a[1]+t*dy-p[1];return Math.sqrt(x*x+y*y);}
 async function hzFault(a){
-  var j=await hzJ('https://gis.gns.cri.nz/server/rest/services/Active_Faults/NZActiveFaults250K/MapServer/0/query?f=json&geometry='+a.x+','+a.y+'&geometryType=esriGeometryPoint&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&distance=30000&units=esriSRUnit_Meter&outFields=name&returnGeometry=true&maxAllowableOffset=0.0005&resultRecordCount=60',12000);
+  /* search close in first, so the nearest fault is never crowded out by distant ones */
+  var j=null,R=[2000,10000,30000];
+  for(var t=0;t<R.length;t++){j=await hzJ('https://gis.gns.cri.nz/server/rest/services/Active_Faults/NZActiveFaults250K/MapServer/0/query?f=json&geometry='+a.x+','+a.y+'&geometryType=esriGeometryPoint&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&distance='+R[t]+'&units=esriSRUnit_Meter&outFields=name&returnGeometry=true&maxAllowableOffset=0.0002&resultRecordCount=200',12000);if((j.features||[]).length)break;}
   var k=hzMetres(a.y),best=null;
   (j.features||[]).forEach(function(f){(f.geometry&&f.geometry.paths||[]).forEach(function(p){for(var i=1;i<p.length;i++){var d=hzSegDist([0,0],[(p[i-1][0]-a.x)*k[0],(p[i-1][1]-a.y)*k[1]],[(p[i][0]-a.x)*k[0],(p[i][1]-a.y)*k[1]]);if(!best||d<best.d)best={d:d,n:f.attributes&&f.attributes.name};}});});
   if(!best)return {l:'Nearest active fault',v:'None mapped within 30 km',s:'clear'};
