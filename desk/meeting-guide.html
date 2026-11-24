@@ -1360,13 +1360,16 @@ async function smBuild(){
     var mx=function(lon,z){return (lon+180)/360*Math.pow(2,z)*256;},my=function(lat,z){var r=lat*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z)*256;};
     var z=20,clon=a.x,clat=a.y;
     if(hasP){var b=o.bounds;clon=(b[0]+b[2])/2;clat=(b[1]+b[3])/2;
-      for(z=21;z>14;z--){if(mx(b[2],z)-mx(b[0],z)<=W*0.6&&my(b[1],z)-my(b[3],z)<=(H-FOOT)*0.6)break;}}
+      /* fill about four fifths of the frame with the property, whatever its size */
+      var w0=mx(b[2],0)-mx(b[0],0),h0=my(b[1],0)-my(b[3],0);
+      z=Math.log(Math.min(W*0.8/Math.max(w0,1e-12),(H-FOOT)*0.8/Math.max(h0,1e-12)))/Math.LN2;z=Math.max(14,Math.min(21.6,z));}
+    var zt=Math.min(22,Math.ceil(z)),ts=256*Math.pow(2,z-zt);
     var x0=mx(clon,z)-W/2,y0=my(clat,z)-(H-FOOT)/2;
     var cvn=document.createElement('canvas');cvn.width=W;cvn.height=H;var cx=cvn.getContext('2d');cx.fillStyle='#e9edf0';cx.fillRect(0,0,W,H);
     var photo=false;
     if(key){try{var jobs=[];
-      for(var tx=Math.floor(x0/256);tx<=Math.floor((x0+W-1)/256);tx++)for(var ty=Math.floor(y0/256);ty<=Math.floor((y0+H-1)/256);ty++)(function(tx,ty){
-        jobs.push(smTile('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/'+z+'/'+tx+'/'+ty+'.webp?api='+encodeURIComponent(key)).then(function(im){cx.drawImage(im,Math.round(tx*256-x0),Math.round(ty*256-y0));}));})(tx,ty);
+      for(var tx=Math.floor(x0/ts);tx<=Math.floor((x0+W-1)/ts);tx++)for(var ty=Math.floor(y0/ts);ty<=Math.floor((y0+H-1)/ts);ty++)(function(tx,ty){
+        jobs.push(smTile('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/'+zt+'/'+tx+'/'+ty+'.webp?api='+encodeURIComponent(key)).then(function(im){cx.drawImage(im,Math.floor(tx*ts-x0),Math.floor(ty*ts-y0),Math.ceil(ts)+1,Math.ceil(ts)+1);}));})(tx,ty);
       await Promise.all(jobs);photo=true;}catch(e){cx.fillStyle='#e9edf0';cx.fillRect(0,0,W,H);note+=' The aerial photo could not be loaded, so check your connection and the LINZ Basemaps key.';}}
     if(!photo&&!hasP)throw new Error('nothing');
     var path=function(r){cx.beginPath();r.forEach(function(p,i){var X=mx(p[0],z)-x0,Y=my(p[1],z)-y0;if(i)cx.lineTo(X,Y);else cx.moveTo(X,Y);});cx.closePath();};
