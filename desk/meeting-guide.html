@@ -1390,15 +1390,15 @@ var HZR={
     {l:'Liquefaction vulnerability',u:CCC+'LandCharacteristic/MapServer/36',f:'Liq_Cat',none:'Not assessed here'},
     {l:'Slope hazard (Port Hills and Banks Peninsula)',u:CCC+'DistrictPlanB/MapServer/69'}]},
   'Selwyn District':{who:'Selwyn District Council',chk:[
-    {l:'High flood hazard (2024 modelling)',u:SDC+'28'},
+    {l:'High flood hazard area (2024 modelling; lower flood hazards not checked)',u:SDC+'28'},
     {l:'Coastal inundation overlay',u:SDC+'20'},
     {l:'Tsunami policy overlay',u:SDC+'19'},
     {l:'Fault awareness overlay',u:SDC+'12'},
     {l:'Liquefaction risk area',u:SDC+'8'}]},
   'Waimakariri District':{who:'Waimakariri District Council',chk:[
-    {l:'200-year flood hazard (all sources)',wl:0,leg:HZLEG,none:'Not mapped here'},
-    {l:'200-year flood depth',wl:7,leg:HZDEP,none:'Less than 0.1 m (no mapped flooding)'},
-    {l:'500-year flood hazard (all sources)',wl:1,leg:HZLEG,none:'Not mapped here'}]}
+    {l:'200-year flood hazard (all sources)',wl:0,leg:HZLEG},
+    {l:'200-year flood depth',wl:7,depth:true,none:'Less than 0.1 m (no mapped flooding)'},
+    {l:'500-year flood hazard (all sources)',wl:1,leg:HZLEG}]}
 };
 function hzSig(ms){try{var c=new AbortController();setTimeout(function(){c.abort();},ms||9000);return c.signal;}catch(e){return undefined;}}
 function hzJ(u,ms){return fetch(u,{signal:hzSig(ms)}).then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();}).then(function(j){if(j&&j.error)throw new Error('service');return j;});}
@@ -1408,14 +1408,16 @@ async function hzCheck(c,a){
     var g=encodeURIComponent(JSON.stringify({x:a.x,y:a.y,spatialReference:{wkid:4326}}));
     var j=await hzJ(WMK+'/identify?f=json&geometry='+g+'&geometryType=esriGeometryPoint&sr=4326&tolerance=0&mapExtent='+(a.x-0.01)+','+(a.y-0.01)+','+(a.x+0.01)+','+(a.y+0.01)+'&imageDisplay=400,400,96&layers=all:'+c.wl+'&returnGeometry=false');
     var at=(j.results||[])[0];at=at&&at.attributes||{};var pv=at['UniqueValue.Pixel Value']||at['Classify.Pixel Value']||at['Pixel Value']||'';
-    var n=parseInt(pv,10);if(!isFinite(n)||n<1)return {l:c.l,v:c.none,s:'clear'};
-    return {l:c.l,v:c.leg[n-1]||('Class '+n),s:c.wl===7||n>=3?'hit':'clear'};
+    /* the depth layer gives metres; the hazard layers give classes 1 (very low) to 4 (high) */
+    if(c.depth){var m=parseFloat(pv);if(!isFinite(m)||m<0.1)return {l:c.l,v:c.none,s:'clear'};return {l:c.l,v:'About '+(m<10?m.toFixed(1):Math.round(m))+' m',s:'hit'};}
+    var n=parseInt(pv,10);if(!isFinite(n)||n<1)return {l:c.l,v:'Not modelled here',s:'um'};
+    return {l:c.l,v:c.leg[n-1]||('Class '+n),s:n>=3?'hit':'clear'};
   }
   if(c.um){var u=await hzQ(c.um,a,'&returnCountOnly=true');if(u.count>0)return {l:c.l,v:'Not modelled here',s:'um'};}
   if(c.f){var fj=await hzQ(c.u,a,'&outFields='+encodeURIComponent(c.f));var vals=(fj.features||[]).map(function(f){return f.attributes[c.f];}).filter(Boolean);
     if(!vals.length)return {l:c.l,v:c.none||'No',s:'clear'};
     if(c.worst)vals.sort(function(p,q){var i=c.worst.findIndex(function(w){return new RegExp(w,'i').test(p);}),k=c.worst.findIndex(function(w){return new RegExp(w,'i').test(q);});return (i<0?9:i)-(k<0?9:k);});
-    var v=vals[0];return {l:c.l,v:c.fmt?c.fmt(v):v,s:/blue|no zone|^none$|low|unlikely/i.test(v)?'clear':'hit'};}
+    var v=vals[0];return {l:c.l,v:c.fmt?c.fmt(v):v,s:/^(blue|no zone|none)$|unlikely|^(very )?low\b/i.test(String(v).trim())?'clear':'hit'};}
   var cj=await hzQ(c.u,a,'&returnCountOnly=true');
   if(cj.count>0)return {l:c.l,v:'Yes, the address point is inside',s:'hit'};
   var nj=await hzQ(c.u,a,'&returnCountOnly=true&distance=20&units=esriSRUnit_Meter').catch(function(){return {count:0};});
@@ -1458,7 +1460,7 @@ async function hzSite(a,lds){
 }
 async function hzRun(){
   var a=state.auto;if(!a||!a.x)return;var my=++HZ.seq,addr=a.addr,lds=window.BDMG.ldsKey(),bm=window.BDMG.linzKey();
-  a.hz={busy:true};smRefresh();
+  HZ.running=true;a.hz={busy:true};smRefresh();
   var rows=[],src=[],ta=a.ta||'',safe=function(p,l){return p.catch(function(){return {l:l,v:'Couldn\u2019t check just now',s:'err'};});};
   if(!ta&&lds){try{ta=await hzTA(a,lds);}catch(e){}}
   if(a.live&&lds&&!a.parea){try{await hzSite(a,lds);}catch(e){}}
@@ -1467,6 +1469,7 @@ async function hzRun(){
   jobs.push(safe(hzFault(a),'Nearest active fault'));
   if(bm)jobs.push(safe(hzHeight(a,bm),'Ground height'));
   var res=await Promise.all(jobs);
+  if(my===HZ.seq)HZ.running=false;
   if(my!==HZ.seq||!state.auto||state.auto.addr!==addr)return;
   if(ta)rows.push({l:'District council',v:ta,s:'info'});
   if(reg)src.push(reg.who);
@@ -1478,7 +1481,7 @@ async function hzRun(){
 }
 function hzPanel(a){
   if(!a.hz){if(a.x&&!HZ.pend){HZ.pend=true;setTimeout(function(){HZ.pend=false;hzRun();},0);}return '<p class="small" role="status">Checking hazard maps\u2026</p>';}
-  if(a.hz.busy)return '<p class="small" role="status">Checking council hazard maps and national data\u2026</p>';
+  if(a.hz.busy){if(!HZ.running&&!HZ.pend){HZ.pend=true;setTimeout(function(){HZ.pend=false;hzRun();},0);}return '<p class="small" role="status">Checking council hazard maps and national data\u2026</p>';}
   var h='<h3 style="margin-top:14px">Hazards</h3><div class="autorows hzrows">'+a.hz.rows.map(function(r){return '<div class="hz-'+r.s+'"><span>'+esc(r.l)+'</span><b>'+esc(r.v)+'</b></div>';}).join('')+'</div>';
   var nc=a.hz.rows.some(function(r){return r.s==='nc';}),er=a.hz.rows.some(function(r){return r.s==='err';});
   if(nc&&a.hz.ta)h+='<p class="small"><a href="'+esc('https://www.google.com/search?q='+encodeURIComponent(a.hz.ta+' council natural hazards flood map'))+'" target="_blank" rel="noopener noreferrer">Find the '+esc(a.hz.ta)+' hazard map</a></p>';
@@ -1490,12 +1493,14 @@ function hzSearch(inp,P,box){
   var lds=window.BDMG.ldsKey();if(!lds||!P.num||P.rest.length<3)return false;var my=++HZ.sseq;
   box.innerHTML='<div class="acn" role="status">Searching all of New Zealand\u2026</div>';box.hidden=false;
   var pat=((P.unit?P.unit+'/':'')+P.num+' '+P.rest.split(' ').join('%')+'%').replace(/'/g,"''");
-  hzJ('https://data.linz.govt.nz/services;key='+encodeURIComponent(lds)+'/wfs?service=WFS&version=2.0.0&request=GetFeature&outputFormat=json&srsName=EPSG:4326&typeNames=layer-123113&count=8&propertyName=full_address,territorial_authority,shape&cql_filter='+encodeURIComponent("full_address_ascii ILIKE '"+pat+"'"),15000).then(function(j){
+  fetch('https://data.linz.govt.nz/services;key='+encodeURIComponent(lds)+'/wfs?service=WFS&version=2.0.0&request=GetFeature&outputFormat=json&srsName=EPSG:4326&typeNames=layer-123113&count=8&propertyName=full_address,territorial_authority,shape&cql_filter='+encodeURIComponent("full_address_ascii ILIKE '"+pat+"'"),{signal:hzSig(15000)}).then(function(r){return r.text().then(function(t){
+    if(r.status===401||r.status===403||/ExceptionReport|not authori[sz]ed|permission/i.test(t)){var e=new Error('key');e.key=true;throw e;}
+    return JSON.parse(t);});}).then(function(j){
     if(my!==HZ.sseq)return;
     var out=(j.features||[]).map(function(f){return {live:true,full:f.properties.full_address,ta:f.properties.territorial_authority,x:f.geometry.coordinates[0],y:f.geometry.coordinates[1]};});
     AC.list=out;
     box.innerHTML=out.length?out.map(function(o,i){return '<button type="button" class="aci" role="option" data-act="ac_pick" data-for="'+esc(inp.id)+'" data-i="'+i+'">'+esc(o.full)+'</button>';}).join(''):'<div class="acn">No match anywhere in New Zealand. Check the number and street, or enter the address by hand.</div>';
-  }).catch(function(){if(my!==HZ.sseq)return;box.innerHTML='<div class="acn">Couldn\u2019t search all of New Zealand just now. Enter the address by hand, or try again.</div>';});
+  }).catch(function(e){if(my!==HZ.sseq)return;box.innerHTML='<div class="acn">'+(e&&e.key?'Your LINZ Data Service key doesn\u2019t allow address searches. On data.linz.govt.nz, create a key with WFS access and paste it under LINZ keys.':'Couldn\u2019t search all of New Zealand just now. Enter the address by hand, or try again.')+'</div>';});
   return true;
 }
 
@@ -2380,7 +2385,7 @@ async function bdSave(){
     var pb=null;try{pb=window.jspdf?pdfBytes(m):null;}catch(e){}
     if(pb)files.push({name:pdfName(),type:'application/pdf',blob:new Blob([pb],{type:'application/pdf'}),kind:'pdf'});
     photos.forEach(function(p){if(p.blob)files.push({name:p.name||'photo.jpg',type:p.blob.type||'image/jpeg',blob:p.blob,kind:p.id==='sitemap'?'aerial':'photo'});});
-    var site='';if(a&&a.addr){var sp=[];if(a.parea)sp.push('land parcel '+a.parea.toLocaleString('en-NZ')+' m2');if(a.bsum)sp.push('building footprint '+a.bsum.toLocaleString('en-NZ')+' m2 in '+a.bcnt+' building'+(a.bcnt===1?'':'s'));(a.hz&&a.hz.rows||[]).forEach(function(r){if(r.s!=='err'&&r.s!=='nc')sp.push(r.l+': '+r.v);});site=sp.join('; ');}
+    var site='';if(a&&a.addr){var sp=[];if(a.parea)sp.push('land parcel '+a.parea.toLocaleString('en-NZ')+' m2');if(a.bsum)sp.push('building footprint '+a.bsum.toLocaleString('en-NZ')+' m2 in '+a.bcnt+' building'+(a.bcnt===1?'':'s'));(a.hz&&a.hz.rows||[]).forEach(function(r){if(r.s!=='err'&&r.s!=='nc')sp.push(r.l+': '+r.v);});if(a.hz&&a.hz.src&&a.hz.src.length)sp.push('sources: LINZ (CC BY 4.0), '+a.hz.src.join(', ').replace('GNS Science NZ Active Faults Database','GNS Science NZ Active Faults Database (1:250,000)')+'; indicative only');site=sp.join('; ');}
     var out={rid:state.bd||'',mrid:state.rid,row:row,note:crmNote(),answers:bodyFor('uw',m).text,tasks:allTasks(),declOk:get('decl','ok')==='Yes',geo:a&&a.x?{x:a.x,y:a.y}:null,site:site,files:files};
     var how=await window.BDMG.send(out);
     state.bdSaved=true;save();

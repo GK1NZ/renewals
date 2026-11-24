@@ -4308,9 +4308,9 @@ X.guide=function(steps,opts){
   document.body.appendChild(el);
   var hole=el.querySelector(".th"),card=el.querySelector(".tc");
   el.querySelector('[data-t="skip"]').textContent=opts.skipLabel||"Skip";
-  function place(){
+  function place(still){
     var st=steps[i],t=target(st);
-    if(t){try{t.el.scrollIntoView({block:"center",inline:"nearest"})}catch(e){}}
+    if(t&&!still){try{t.el.scrollIntoView({block:"center",inline:"nearest"})}catch(e){}}
     var r=t?rectOf(t):null,vw=window.innerWidth,vh=window.innerHeight,pad=st.pad==null?6:st.pad;
     if(r){hole.style.cssText="left:"+(r.left-pad)+"px;top:"+(r.top-pad)+"px;width:"+(r.width+pad*2)+"px;height:"+(r.height+pad*2)+"px";hole.classList.remove("none")}
     else{hole.style.cssText="left:50%;top:45%;width:0;height:0";hole.classList.toggle("none",!!st.clear)}
@@ -4332,7 +4332,7 @@ X.guide=function(steps,opts){
     el.querySelector(".tn").textContent=(i+1)+" of "+steps.length;
     el.querySelector('[data-t="back"]').hidden=i===0;el.querySelector('[data-t="skip"]').hidden=i===steps.length-1&&!opts.keepSkip;
     el.querySelector('[data-t="next"]').textContent=i===steps.length-1?(opts.doneLabel||"Done"):"Next";
-    busy=false;card.classList.remove("ld");place();setTimeout(place,120);setTimeout(place,450);
+    busy=false;card.classList.remove("ld");place();setTimeout(place,120);setTimeout(place,450);clearInterval(api._rp);var stepAt=tok;api._rp=setInterval(function(){if(tok!==stepAt||!guide)return clearInterval(api._rp);place(true)},700);
     try{el.querySelector('[data-t="next"]').focus({preventScroll:true})}catch(e){}
     if(opts.onStep)opts.onStep(i);
   }
@@ -4341,7 +4341,7 @@ X.guide=function(steps,opts){
     steps.forEach(function(s,k){if(s.ch&&!seen[s.ch]){seen[s.ch]=1;h+='<button type="button" data-go="'+k+'"'+(steps[i].ch===s.ch?' aria-current="true"':'')+'>'+esc(s.ch)+'</button>'}});
     m.innerHTML=h;m.hidden=!m.hidden;place();
   }
-  var api={end:function(quiet){if(!guide)return;tok++;el.remove();guide=null;window.removeEventListener("resize",place);document.removeEventListener("keydown",key);if(!quiet&&opts.onEnd)opts.onEnd(i>=steps.length-1)},at:function(){return i}};
+  var api={end:function(quiet){if(!guide)return;tok++;clearInterval(api._rp);el.remove();guide=null;window.removeEventListener("resize",place);document.removeEventListener("keydown",key);if(!quiet&&opts.onEnd)opts.onEnd(i>=steps.length-1)},at:function(){return i}};
   el.addEventListener("click",function(e){var b=e.target.closest("[data-t],[data-go]");if(!b)return;
     if(b.dataset.go){i=Number(b.dataset.go);show();return}
     var a=b.dataset.t;if(a==="menu")return menu();if(a==="skip")return api.end();if(busy&&a!=="back")return;
