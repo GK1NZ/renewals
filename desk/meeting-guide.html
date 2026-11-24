@@ -191,6 +191,7 @@ select.in{min-width:0}
 .sitebox{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
 .sitebox canvas{display:block;width:100%;height:auto;touch-action:manipulation;cursor:crosshair}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:var(--ink)}
 </style>
 
 </head>
@@ -1315,7 +1316,7 @@ function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())retu
   var sm=photos.filter(function(p){return p.id==='sitemap';})[0];
   if(sm)h+='<img class="sitemap" alt="Aerial photo of the site with the address point marked" src="'+esc(sm.url)+'">';
   if(SM.msg)h+='<p class="small" role="status">'+esc(SM.msg)+'</p>';
-  if(a.x)h+='<div class="btnrow"><a class="btn" href="'+esc(satUrl(a))+'" target="_blank" rel="noopener noreferrer">Open satellite view</a>'+(window.BDMG.linzKey()&&!SM.busy?'<button class="btn" type="button" data-act="ac_map">'+(sm?'Refresh aerial photo':'Add aerial photo')+'</button>':'')+'</div>'+(a.x&&!window.BDMG.linzKey()?'<p class="small">The satellite link goes into the underwriter submission. To add an aerial photo as well, paste a free LINZ Basemaps key in Broker Desk Settings.</p>':'');
+  if(a.x)h+='<div class="btnrow"><a class="btn" href="'+esc(satUrl(a))+'" target="_blank" rel="noopener noreferrer">Open satellite view</a>'+(window.BDMG.linzKey()&&!SM.busy?'<button class="btn" type="button" data-act="ac_map">'+(sm?'Refresh aerial photo':'Add aerial photo')+'</button>':'')+'</div>'+(a.x&&!window.BDMG.linzKey()?'<p class="small" style="margin-top:10px"><b>Want an aerial photo of the site here?</b> Paste your free LINZ Basemaps key once and it is added to every look-up and to the underwriter submission on this device.</p><div class="btnrow"><input class="in" id="ac_keyin" placeholder="LINZ Basemaps key" autocomplete="off" aria-label="LINZ Basemaps key" style="flex:2 1 200px"><button class="btn" type="button" data-act="ac_key">Save key</button></div>':'');
   h+='<p class="small">Source: LINZ NZ Addresses, NZ Primary Parcels and NZ Building Outlines (CC BY 4.0).'+(a.flood?' Flood: Christchurch City Council and Waimakariri District Plan open data.':'')+'</p></div>';return h;}
 
 
@@ -2580,6 +2581,7 @@ main.addEventListener('click',function(e){
     staffStore(l,i);staffApply();render(true);var m2=document.getElementById('staffmsg');if(m2)m2.textContent='Saved. '+nm+' is completing this review.';return;}
   if(a==='staff_del'){var l2=staffList().slice(),j=parseInt(document.getElementById('staffSel').value,10)||0;if(l2.length>1&&j<l2.length){l2.splice(j,1);staffStore(l2,0);staffApply();render(true);}return;}
   if(a==='ac_map'){smBuild();return;}
+  if(a==='ac_key'){var kv=(document.getElementById('ac_keyin')||{}).value||'';kv=kv.trim();if(!/^[A-Za-z0-9]{20,40}$/.test(kv)){SM.msg='That does not look like a LINZ key. Copy it from basemaps.linz.govt.nz, under the menu.';smRefresh();return;}try{localStorage.setItem('bd_linzkey',kv);}catch(x){}SM.msg='';SM.tried='';smBuild();return;}
   if(a==='ac_pick'){acPick(b.dataset.for,parseInt(b.dataset.i,10));return;}
   if(a==='ac_area'){var hl='line:house';if(state.auto&&state.lines.indexOf('house')>-1){set(hl,'area',String(state.auto.bsum));render(true);}return;}
   if(a==='qsload'){var qf=document.getElementById('qsFile');if(qf)qf.click();return;}

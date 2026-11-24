@@ -735,7 +735,7 @@ async function buildBackup(){
   var out={app:"BrokerDesk",v:2,saved:new Date().toISOString(),cols:{},files:{},ls:{}};
   var keys=await idbKeys("kv");for(var i=0;i<keys.length;i++){var k=String(keys[i]);if(k.indexOf("col:")===0)out.cols[k.slice(4)]=await idbGet("kv",k)}
   var fk=await idbKeys("files");for(var j=0;j<fk.length;j++){var f=await idbGet("files",fk[j]);if(f&&f.blob)out.files[fk[j]]={name:f.name,type:f.type,b64:await b64FromBlob(f.blob)}}
-  try{for(var n=0;n<localStorage.length;n++){var lk=localStorage.key(n);if(/^(rr_|bd_|renewalCapture)/.test(lk)&&!/^rr_(clientid|authority|root|rootmode|mode)$/.test(lk)&&!/^bd_(linzkey|linzinit|meet|inbox|autobk|backup|changed)$/.test(lk))out.ls[lk]=localStorage.getItem(lk)}}catch(e){}
+  try{for(var n=0;n<localStorage.length;n++){var lk=localStorage.key(n);if(/^(rr_|bd_|renewalCapture)/.test(lk)&&!/^rr_(clientid|authority|root|rootmode|mode)$/.test(lk)&&!/^bd_(linzinit|meet|inbox|autobk|backup|changed)$/.test(lk))out.ls[lk]=localStorage.getItem(lk)}}catch(e){}
   var d=new Date();
   return{name:"BrokerDesk-backup-"+d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)+".json",json:JSON.stringify(out)};
 }
