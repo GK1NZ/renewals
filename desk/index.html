@@ -306,17 +306,22 @@ table.t{border-collapse:collapse;width:100%;min-width:900px}
 "use strict";
 var D=/^#demo\b/.test(location.hash||"");
 window.__BD_DEMO=D;
+/* switching between the demo and real work by changing the address reloads, so the two never share a page */
+if(window.top===window)window.addEventListener("hashchange",function(){if(/^#demo\b/.test(location.hash||"")!==D)location.reload()});
 if(!D||window.__BD_SHIM)return;window.__BD_SHIM=true;
 var ls=null;try{ls=window.localStorage}catch(e){}
 if(!ls)return;
-var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=Object.create(null);
+var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=null;
+/* the Meeting Guide inside the demo shares the demo's memory, so it knows the demo broker */
+try{if(window.parent!==window&&window.parent.__BD_MEM)mem=window.parent.__BD_MEM}catch(e){}
+if(!mem)mem=Object.create(null);window.__BD_MEM=mem;
 /* the LINZ keys can be read from real storage so the site photo works in the demo; they are never written back */
 var PASS={bd_linzkey:1,bd_ldskey:1};
 P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?g.call(this,key):null}return g.apply(this,arguments)};
 P.setItem=function(key,v){if(this===ls){mem[String(key)]=String(v);return}return s.apply(this,arguments)};
 P.removeItem=function(key){if(this===ls){delete mem[String(key)];return}return r.apply(this,arguments)};
 P.key=function(i){if(this===ls)return Object.keys(mem)[i]||null;return k.apply(this,arguments)};
-P.clear=function(){if(this===ls){mem=Object.create(null);return}return c.apply(this,arguments)};
+P.clear=function(){if(this===ls){Object.keys(mem).forEach(function(x){delete mem[x]});return}return c.apply(this,arguments)};
 try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defineProperty(P,"length",{configurable:true,enumerable:true,get:function(){return this===ls?Object.keys(mem).length:lg.get.call(this)}})}catch(e){}
 /* no database on the device either */
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
@@ -495,7 +500,7 @@ function draw(){
 }
 function demoDraft(inp){
   var to=(inp.to||[]).join(", "),atts=inp.attachments||[];
-  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Gmail or Apple Mail) for you to check and send. Nothing is sent from here.</p>'
+  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Apple Mail or whichever you use) for you to check and send. Nothing is sent from here.</p>'
     +'<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:0 0 10px"><span style="color:var(--muted,#667)">To</span><span style="overflow-wrap:anywhere">'+esc(to)+'</span>'+(inp.cc&&inp.cc.length?'<span style="color:var(--muted,#667)">Cc</span><span>'+esc(inp.cc.join(", "))+'</span>':'')+'<span style="color:var(--muted,#667)">Subject</span><b style="overflow-wrap:anywhere">'+esc(inp.subject||"")+'</b>'+(atts.length?'<span style="color:var(--muted,#667)">Attached</span><span>'+atts.map(function(a){return esc(a.filename)}).join(", ")+'</span>':'')+'</div>';
   demoBox("Email draft to "+(to||"recipient"),head+(inp.htmlBody?'<iframe title="Email body" sandbox="" style="width:100%;height:46vh;border:1px solid var(--line,#ccd);border-radius:8px;background:#fff"></iframe>':'<pre style="white-space:pre-wrap;font:inherit;margin:0;border:1px solid var(--line,#ccd);border-radius:8px;padding:10px 12px">'+esc(inp.body||"")+'</pre>'),inp.htmlBody?function(o){var f=o.querySelector("iframe");if(f)f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:14px/1.5 system-ui,sans-serif;margin:12px">'+inp.htmlBody+'</body>'}:null);
   return{payload:{demo:true}};
@@ -799,13 +804,13 @@ async function startDemoMode(){
 }
 async function seedStory(db){
   var iso=function(d){var t=new Date();t.setDate(t.getDate()+d);return t.toISOString()},L=function(){var a=[];for(var i=0;i<arguments.length;i+=2)a.push({t:iso(arguments[i]),txt:arguments[i+1],by:"me"});return a};
-  var mon=ymd(0).slice(0,8);
+  var back=Math.min(3,new Date().getDate()-1);
   await db.doc("renewals/demo_r0").update({industry:"Plumbers, gasfitters and drainlayers",address:"5 Sir William Pickering Drive, Burnside, Christchurch",phone:"021 555 0101",email:"sam@harbourview.example",log:L(-20,"Added to Broker Desk",-12,"Renewal information request sent to the client",-5,"Chase sent: still waiting on the information")});
   await db.doc("renewals/demo_r1").update({industry:"Orchards, vineyards and nurseries",address:"120 Wrights Road, Addington, Christchurch",geo:{x:172.59699,y:-43.54176},site:"land parcel 8,053 m2; building footprint 673 m2 in 1 building; Christchurch City 200-year flood extent: within about 20 m of the mapped area",psum:"Packhouse and coolstore, steel frame on concrete floor, built 2008. Monitored alarm and sprinklers. No claims in five years.",dAnswersIn:ymd(-9),log:L(-30,"Added to Broker Desk",-14,"Meeting completed, client confirmed the information",-9,"Submissions sent to 3 underwriters")});
   await db.doc("renewals/demo_r3").update({industry:"Food and beverage manufacturing",address:"100 Moorhouse Avenue, Addington, Christchurch",log:L(-40,"Added to Broker Desk",-25,"Client returned the renewal form",-18,"Submissions sent to 2 underwriters",-2,"Second quote received")});
   await db.doc("renewals/demo_r4").update({industry:"Builders and carpenters",log:L(-35,"Added to Broker Desk",-10,"Quotes compared",-6,"Recommendation sent: Sample Insurer A")});
-  await db.doc("renewals/demo_r6").set({client:"Lakeside Joinery Ltd",type:"Commercial",contact:"Aroha King",email:"aroha@lakeside.example",industry:"Joinery, glazing and cabinetmaking",lines:"Material damage, Liability, Business interruption",sum:750000,prem:9300,bPrem:9640,date:ymd(-4),owner:"Alex Morgan",status:"Renewed",statusAt:iso(-6),insurer:"Sample Insurer A",dBound:mon+"02",inc:1446,incFee:250,dInvoiced:mon+"03",next:"",quotes:[],files:[],log:L(-50,"Added to Broker Desk",-20,"Quotes compared",-8,"Client accepted Sample Insurer A",-6,"Renewed and sent to processing")});
-  await db.doc("prospects/demo_p4").set({name:"Riverside Dental",contact:"Dr Mei Chen",phone:"",email:"",source:"Referral",referrer:"Lakeside Joinery Ltd",type:"Commercial",lines:"Material damage, Liability",est:8200,pace:"Standard",stage:"Won",stageAt:iso(-3),created:iso(-30),closedAt:iso(-3),wonPrem:8200,inc:1230,incFee:150,tasks:[],log:[]});
+  await db.doc("renewals/demo_r6").set({client:"Lakeside Joinery Ltd",type:"Commercial",contact:"Aroha King",email:"aroha@lakeside.example",industry:"Joinery, glazing and cabinetmaking",lines:"Material damage, Liability, Business interruption",sum:750000,prem:9300,bPrem:9640,date:ymd(-4),owner:"Alex Morgan",status:"Renewed",statusAt:iso(-6),insurer:"Sample Insurer A",dBound:ymd(-back),inc:1446,incFee:250,dInvoiced:ymd(0),next:"",quotes:[],files:[],log:L(-50,"Added to Broker Desk",-20,"Quotes compared",-8,"Client accepted Sample Insurer A",-6,"Renewed and sent to processing")});
+  await db.doc("prospects/demo_p4").set({name:"Riverside Dental",contact:"Dr Mei Chen",phone:"",email:"",source:"Referral",referrer:"Lakeside Joinery Ltd",type:"Commercial",lines:"Material damage, Liability",est:8200,pace:"Standard",stage:"Won",stageAt:iso(-back),created:iso(-30),closedAt:iso(-back),wonPrem:8200,inc:1230,incFee:150,tasks:[],log:[]});
   await db.doc("config/targets").set({inc:8000,prem:30000});
 }
 function exitDemo(){location.href=location.pathname+location.search}
@@ -4117,7 +4122,7 @@ X.startMeeting=function(id){
   /* the new-tab route picks the client up from here */
   var nb=w.querySelector("#bdmeetnew");if(nb)nb.addEventListener("click",function(){if(p)R.safeSet("bd_meet",JSON.stringify(p))});
   w.querySelector("#bdmeetx").onclick=closeMeet;
-  MEET.t=setTimeout(function(){if(MEET&&!MEET.ready)$("bdmeethint").hidden=false},5000);
+  if(!window.__BD_DEMO)MEET.t=setTimeout(function(){if(MEET&&!MEET.ready)$("bdmeethint").hidden=false},5000);
 };
 function closeMeet(){if(!MEET)return;clearTimeout(MEET.t);MEET.el.remove();MEET=null;document.documentElement.style.overflow=""}
 window.addEventListener("message",function(e){
@@ -4389,7 +4394,7 @@ var DEMO_STEPS=[
   {ch:"Getting the information",fsel:function(d){return d.querySelector("img.sitemap")||d.querySelector(".autop")},dock:true,t:"Site photo",d:"With free LINZ keys added, it also draws an aerial photo zoomed to the property, with the boundary and buildings outlined, and attaches it to the submission.",go:async function(){await meeting(linzOn()?"photo":true);var d=frameDoc();if(d&&linzOn()&&!d.querySelector("img.sitemap")){var b=d.querySelector('[data-act="ac_map"]');if(b){b.click();await waitFor(function(){return d.querySelector("img.sitemap")},9000)}}}},
   {ch:"Getting the information",dock:true,clear:true,t:"Saved to the client",d:"At the end, <b>Save to Broker Desk</b> puts the answers, the submission PDF, photos, follow-ups and the next step on the client’s record. No retyping and no copying and pasting.",go:function(){return meeting(true)}},
   {ch:"Going to market",sel:"#uwbody",t:"Submissions written for you",d:"Broker Desk writes the submission from what the client told you, including the site data and satellite link. Pick the underwriters and each gets their own draft, with the meeting PDF and site photo attached.",go:function(){return sheetBtn("demo_r1","puw","#uwbody")}},
-  {ch:"Going to market",sel:"#bddraftprev .bdp",t:"You check, you send",d:"Each draft opens in your own mail app (Outlook, Gmail or Apple Mail) for you to read and send. Broker Desk never sends anything by itself. In this demo it shows on screen instead.",go:async function(){await sheetBtn("demo_r1","puw","#uwbody");R.mcp().callTool("Outlook","create_draft",{to:["quotes@example.com"],subject:document.getElementById("uwsub")?document.getElementById("uwsub").value:"Renewal submission",body:document.getElementById("uwbody").value})}},
+  {ch:"Going to market",sel:"#bddraftprev .bdp",t:"You check, you send",d:"Each draft opens in your own mail app (Outlook, Gmail, Apple Mail or whichever you use) for you to read and send. Broker Desk never sends anything by itself. In this demo it shows on screen instead.",go:async function(){await sheetBtn("demo_r1","puw","#uwbody");R.mcp().callTool("Outlook","create_draft",{to:["quotes@example.com"],subject:document.getElementById("uwsub")?document.getElementById("uwsub").value:"Renewal submission",body:document.getElementById("uwbody").value})}},
   {ch:"Quotes",sel:".qg",t:"Quotes side by side",d:"Type each insurer’s terms as they come in. Premiums, excesses, earthquake excess and endorsements line up line by line, and totals with fees and GST are worked out for you.",go:function(){return sheetBtn("demo_r3","pterms",".qg")}},
   {ch:"Quotes",sel:"#p2body",t:"The recommendation",d:"Tick the quote you recommend and Broker Desk builds the comparison for the client: a table, a graph and plain-English notes on each endorsement, ready to send as a draft.",go:function(){return sheetBtn("demo_r3","pcmp","#p2body")}},
   {ch:"Placing and income",sel:"#sec-income",t:"Income",d:"When a renewal is placed, record the premium and commission and it flows here: income this month and year against your targets, what still needs invoicing and what’s unpaid.",go:function(){return sec("income")}},

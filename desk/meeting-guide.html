@@ -213,17 +213,22 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 "use strict";
 var D=/^#demo\b/.test(location.hash||"");
 window.__BD_DEMO=D;
+/* switching between the demo and real work by changing the address reloads, so the two never share a page */
+if(window.top===window)window.addEventListener("hashchange",function(){if(/^#demo\b/.test(location.hash||"")!==D)location.reload()});
 if(!D||window.__BD_SHIM)return;window.__BD_SHIM=true;
 var ls=null;try{ls=window.localStorage}catch(e){}
 if(!ls)return;
-var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=Object.create(null);
+var P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem,k=P.key,c=P.clear,mem=null;
+/* the Meeting Guide inside the demo shares the demo's memory, so it knows the demo broker */
+try{if(window.parent!==window&&window.parent.__BD_MEM)mem=window.parent.__BD_MEM}catch(e){}
+if(!mem)mem=Object.create(null);window.__BD_MEM=mem;
 /* the LINZ keys can be read from real storage so the site photo works in the demo; they are never written back */
 var PASS={bd_linzkey:1,bd_ldskey:1};
 P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?g.call(this,key):null}return g.apply(this,arguments)};
 P.setItem=function(key,v){if(this===ls){mem[String(key)]=String(v);return}return s.apply(this,arguments)};
 P.removeItem=function(key){if(this===ls){delete mem[String(key)];return}return r.apply(this,arguments)};
 P.key=function(i){if(this===ls)return Object.keys(mem)[i]||null;return k.apply(this,arguments)};
-P.clear=function(){if(this===ls){mem=Object.create(null);return}return c.apply(this,arguments)};
+P.clear=function(){if(this===ls){Object.keys(mem).forEach(function(x){delete mem[x]});return}return c.apply(this,arguments)};
 try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defineProperty(P,"length",{configurable:true,enumerable:true,get:function(){return this===ls?Object.keys(mem).length:lg.get.call(this)}})}catch(e){}
 /* no database on the device either */
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
@@ -335,7 +340,7 @@ function draw(){
 }
 function demoDraft(inp){
   var to=(inp.to||[]).join(", "),atts=inp.attachments||[];
-  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Email or Apple Mail) for you to check and send. Nothing is sent from here.</p>'
+  var head='<p style="margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--brand-soft,#e6f2f1)">Demo: in real use this opens as a draft in your mail app (Outlook, Apple Mail or whichever you use) for you to check and send. Nothing is sent from here.</p>'
     +'<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:0 0 10px"><span style="color:var(--muted,#667)">To</span><span style="overflow-wrap:anywhere">'+esc(to)+'</span>'+(inp.cc&&inp.cc.length?'<span style="color:var(--muted,#667)">Cc</span><span>'+esc(inp.cc.join(", "))+'</span>':'')+'<span style="color:var(--muted,#667)">Subject</span><b style="overflow-wrap:anywhere">'+esc(inp.subject||"")+'</b>'+(atts.length?'<span style="color:var(--muted,#667)">Attached</span><span>'+atts.map(function(a){return esc(a.filename)}).join(", ")+'</span>':'')+'</div>';
   demoBox("Email draft to "+(to||"recipient"),head+(inp.htmlBody?'<iframe title="Email body" sandbox="" style="width:100%;height:46vh;border:1px solid var(--line,#ccd);border-radius:8px;background:#fff"></iframe>':'<pre style="white-space:pre-wrap;font:inherit;margin:0;border:1px solid var(--line,#ccd);border-radius:8px;padding:10px 12px">'+esc(inp.body||"")+'</pre>'),inp.htmlBody?function(o){var f=o.querySelector("iframe");if(f)f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:14px/1.5 system-ui,sans-serif;margin:12px">'+inp.htmlBody+'</body>'}:null);
   return{payload:{demo:true}};
