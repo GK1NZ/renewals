@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Broker Desk: start here</title>
+<style>
+:root{--bg:#f5f6f4;--fg:#1b2420;--muted:#5d6a64;--line:#d9dfdb;--accent:#0f5c4d;--surface:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#121816;--fg:#e6ece9;--muted:#9aa8a1;--line:#2b3531;--accent:#6cc7b2;--surface:#1a211e;color-scheme:dark}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;padding:32px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px))}
+main{max-width:680px;margin:0 auto}h1{font-size:28px;margin:0 0 6px;text-wrap:balance}h2{font-size:18px;margin:30px 0 6px}p,li{margin:0 0 10px}a{color:var(--accent)}
+.go{display:inline-block;background:var(--accent);color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;margin:10px 0}
+@media (prefers-color-scheme:dark){.go{color:#07231d}}
+table{border-collapse:collapse;width:100%;margin:6px 0 10px}td,th{border-top:1px solid var(--line);padding:8px 10px 8px 0;text-align:left;vertical-align:top}th{white-space:nowrap}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+</style>
+</head>
+<body><main>
+<h1>Broker Desk</h1>
+<p>One app for the whole job: prospects, client information, the market, quotes, the recommendation, placement and income. It runs from this folder. There is nothing to install and no account to create.</p>
+<a class="go" href="index.html">Open Broker Desk</a>
+
+<h2>Starting</h2>
+<ol>
+<li>Keep this folder together, anywhere you like: Documents, a USB stick, or a shared drive.</li>
+<li>Open <b>index.html</b> in Chrome, Edge or Safari. Bookmark it.</li>
+<li>Two short screens ask for your name and the insurers you use. Only your name is needed.</li>
+<li>A one-minute tour shows you around, and a <b>Getting started</b> list on the Today screen walks you through the first jobs and ticks them off as you go. The <b>Help</b> button explains whichever screen you are on.</li>
+</ol>
+
+<h2>Where your work is kept</h2>
+<div class="card">
+<p>Everything stays in the browser on the device you are using. Nothing is sent anywhere.</p>
+<p style="margin:0"><b>Back up weekly.</b> Use <b>Back up now</b> at the bottom of the page. It saves one file holding every client, quote, document and setting. Broker Desk reminds you when a week has passed. Clearing the browser's site data, or using a private window, removes the work, so the backup file is your safety net.</p>
+</div>
+
+<h2>Automatic backup to OneDrive or Google Drive</h2>
+<p>On a computer, in Chrome or Edge: open Settings, choose <b>Choose backup folder</b>, and pick a folder inside your OneDrive or Google Drive folder. From then on every change is saved there within a few seconds and your cloud drive copies it up. The browser may ask you to allow the folder again after a restart; one tap on <b>Resume</b> at the bottom of the page does it.</p>
+<p>On a phone, <b>Back up now</b> opens the share list so you can send the file straight to Google Drive or OneDrive.</p>
+<p>If a device is lost: open Broker Desk on the new one, choose <b>Restore from a backup file</b>, and pick <b>BrokerDesk-backup-latest.json</b> from your cloud drive.</p>
+
+<h2>Moving to another computer, phone or firm</h2>
+<ol>
+<li>Back up on the old device.</li>
+<li>Copy this folder to the new one and open <b>index.html</b>.</li>
+<li>On the first screen choose <b>Restore from a backup file</b>.</li>
+</ol>
+<p>A phone and a laptop each hold their own copy. To carry work between them, back up on one and restore on the other.</p>
+
+<h2>What is in the folder</h2>
+<table>
+<tr><th>index.html</th><td>Broker Desk itself.</td></tr>
+<tr><th>meeting-guide.html</th><td>The Meeting Guide. Opens from <b>Start meeting</b> and saves back to the client.</td></tr>
+<tr><th>client-form</th><td>The form clients fill in themselves. To use it, put this whole folder on any web host, then paste the form's web address into Settings.</td></tr>
+<tr><th>data, lib</th><td>Address look-up data, industry questions and the PDF and spreadsheet tools. Leave these in place.</td></tr>
+</table>
+
+<h2>Email and reminders</h2>
+<p>Broker Desk never sends anything. On a computer each email is saved as a draft file that opens in Outlook or Apple Mail, ready to check and send, with formatting and attachments. On a phone it opens your mail app. Reminders save as calendar files. Change this in Settings.</p>
+
+<h2>Site look-up</h2>
+<p>In the Meeting Guide, pick the address from the list to get the land parcel, building footprint, council flood layers and a satellite link. These go into the underwriter submission. Address data covers the South Island and Auckland. Flood layers cover Christchurch, Selwyn and Waimakariri. With a LINZ Basemaps key in Settings, an aerial photo is added too.</p>
+<p style="color:var(--muted);font-size:14px">Address, parcel and building data: LINZ, CC BY 4.0. Flood layers: Christchurch City Council and Waimakariri District Council open data. All indicative only.</p>
+
+<h2>Sharing with a team</h2>
+<p>For a shared register kept in OneDrive, with drafts created straight in Outlook, choose <b>Use Microsoft 365 instead</b> on the first screen. Your IT provider needs to register the app once in Microsoft Entra and give you the Application ID.</p>
+</main></body>
+</html>

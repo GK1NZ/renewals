@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Broker Desk: team setup</title>
+<style>
+:root{--bg:#f5f6f4;--fg:#1b2420;--muted:#5d6a64;--line:#d9dfdb;--accent:#0f5c4d;--surface:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#121816;--fg:#e6ece9;--muted:#9aa8a1;--line:#2b3531;--accent:#6cc7b2;--surface:#1a211e;color-scheme:dark}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;padding:32px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px))}
+main{max-width:700px;margin:0 auto}h1{font-size:28px;margin:0 0 6px;text-wrap:balance}h2{font-size:18px;margin:30px 0 6px}p,li{margin:0 0 10px}a{color:var(--accent)}
+code{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:14px;overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;margin:6px 0 10px}td,th{border-top:1px solid var(--line);padding:8px 10px 8px 0;text-align:left;vertical-align:top}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+</style>
+</head>
+<body><main>
+<h1>Team setup: one shared database</h1>
+<p>For a firm where several brokers work from the same client database. Each broker signs in with their Microsoft 365 work account. The data sits in one shared folder in the firm's own Microsoft 365, so nothing is held by an outside provider.</p>
+
+<div class="card"><b>What you need</b>
+<ul style="margin:8px 0 0">
+<li>A Microsoft 365 work account for every broker, in the same organisation.</li>
+<li>Somewhere to host this folder at an <b>https</b> web address. Sign-in does not work from a folder on disk.</li>
+<li>About 20 minutes from whoever administers the firm's Microsoft 365.</li>
+</ul></div>
+
+<h2>1. Host the folder (IT)</h2>
+<p>Upload the whole BrokerDesk folder, unchanged, to any static web host the firm controls: Azure Static Web Apps, an existing website, or similar. Note the address of <code>index.html</code>, for example <code>https://desk.yourfirm.co.nz/index.html</code>.</p>
+
+<h2>2. Register the app in Microsoft Entra (IT)</h2>
+<ol>
+<li>Go to <b>entra.microsoft.com</b>, then Applications, App registrations, New registration.</li>
+<li>Name: Broker Desk. Supported accounts: this organisation only.</li>
+<li>Redirect URI: choose <b>Single-page application</b> and enter the exact address of <code>index.html</code> from step 1.</li>
+<li>Under API permissions add these Microsoft Graph <b>delegated</b> permissions, then grant admin consent:
+<table>
+<tr><th>User.Read</th><td>Shows who is signed in.</td></tr>
+<tr><th>Files.ReadWrite.All</th><td>Reads and writes the shared BrokerDesk folder, as the signed-in broker.</td></tr>
+<tr><th>Mail.ReadWrite</th><td>Creates email drafts in the broker's Outlook. Nothing is sent.</td></tr>
+<tr><th>Calendars.ReadWrite</th><td>Adds chase reminders to the broker's calendar.</td></tr>
+</table></li>
+<li>Copy the <b>Application (client) ID</b> and the <b>Directory (tenant) ID</b>.</li>
+</ol>
+<p>All permissions are delegated: the app can only do what the signed-in broker can already do. There is no server and no stored password.</p>
+
+<h2>3. Create the shared database (first broker)</h2>
+<ol>
+<li>Open the web address. On the first screen open <b>Team: one shared database for several brokers</b>.</li>
+<li>Paste the Application ID. Set the sign-in authority to <code>https://login.microsoftonline.com/</code> followed by the tenant ID. Sign in.</li>
+<li>Choose <b>In my own OneDrive</b>. This creates a folder called BrokerDesk.</li>
+<li>In OneDrive, share that BrokerDesk folder with the other brokers, with <b>Can edit</b>, and copy the link. For a database that does not depend on one person's account, create the folder in a SharePoint team site instead and use its link in step 4 for everyone.</li>
+</ol>
+
+<h2>4. Invite each broker</h2>
+<ol>
+<li>Share the BrokerDesk folder with them, with <b>Can edit</b> (step 3).</li>
+<li>In Broker Desk open <b>Settings</b>, then <b>Copy invite link</b>, and send them the link.</li>
+<li>They open the link and press <b>Sign in with Microsoft</b>. That is all: no IDs to paste. A short tour shows them around, and Settings is where they add their mobile for their email sign-off.</li>
+</ol>
+
+<h2>How it behaves with several brokers</h2>
+<ul>
+<li>Every client carries its broker's name. Today and Calendar show your own clients first, with an <b>Everyone</b> button. Find and Clients always search the whole firm.</li>
+<li>Changes from other brokers appear within about 20 seconds.</li>
+<li>If two brokers save at the same moment, Broker Desk re-reads and applies both. If two people edit the same field of the same client, the later save wins.</li>
+<li>Documents are stored as files in the same shared folder.</li>
+<li>A broker who uses Gmail for client email can set Settings, Email drafts to <b>On this device</b>. They still sign in with the Microsoft account to reach the database.</li>
+</ul>
+
+<h2>Moving existing work in</h2>
+<p>A broker who has been using Broker Desk on their own device can bring it across: take a backup there, then ask for it to be imported. Loading one person's backup over the shared database replaces what is in it, so do this once, before others start.</p>
+
+<h2>Backup</h2>
+<p>The shared folder is covered by Microsoft 365 version history and the recycle bin. <b>More, Back up everything</b> also saves a copy of the client records to a file.</p>
+</main></body>
+</html>
