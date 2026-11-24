@@ -1319,7 +1319,15 @@ function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())retu
   if(SM.msg)h+='<p class="small" role="status">'+esc(SM.msg)+'</p>';
   var hk=window.BDMG.linzKey(),hl=window.BDMG.ldsKey();
   if(a.x)h+='<div class="btnrow"><a class="btn" href="'+esc(satUrl(a))+'" target="_blank" rel="noopener noreferrer">Open satellite view</a>'+((hk||hl)&&!SM.busy?'<button class="btn" type="button" data-act="ac_map">'+(sm?'Refresh site photo':'Add site photo')+'</button>':'')+'</div>';
-  if(a.x&&(!hk||!hl))h+='<p class="small" style="margin-top:10px">'+(!hk&&!hl?'<b>Want a photo of the site here?</b> Two free LINZ keys do it. A <b>Basemaps</b> key (starts with c01, from basemaps.linz.govt.nz) adds the aerial photo. A <b>Data Service</b> key (from data.linz.govt.nz) zooms to the property and outlines the parcel and its buildings. Paste either one, then the other.':!hk?'Add a LINZ <b>Basemaps</b> key (starts with c01, from basemaps.linz.govt.nz) to put the aerial photo behind the outlines.':'Add a LINZ <b>Data Service</b> key (from data.linz.govt.nz) to zoom to the property and outline the parcel and its buildings.')+'</p><div class="btnrow"><input class="in" id="ac_keyin" placeholder="Paste a LINZ key" autocomplete="off" aria-label="LINZ key" style="flex:2 1 200px"><button class="btn" type="button" data-act="ac_key">Save key</button></div>';
+  if(a.x&&!hk&&!hl&&!SM.keys)h+='<p class="small" style="margin-top:10px"><b>Want a photo of the site here, with the buildings outlined?</b> It takes two free LINZ keys.</p><div class="btnrow"><button class="btn" type="button" data-act="ac_keys">Add LINZ keys</button></div>';
+  if(a.x&&SM.keys){
+    var tk=SM.test||{},badge=function(v,has){return !has?'<span style="color:var(--muted)">Not added</span>':v==='ok'?'<b style="color:var(--ok,#1c7a3d)">✓ Working</b>':v==='bad'?'<b style="color:var(--bad,#b3261e)">✗ LINZ did not accept this key</b>':v==='net'?'<b style="color:var(--bad,#b3261e)">Could not reach LINZ. Check your connection.</b>':v==='wait'?'Checking…':'Saved';};
+    h+='<div style="border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px"><b>LINZ keys</b><p class="small" style="margin:4px 0 10px">Both are free and are kept on this device only.</p>'
+      +'<label class="small" for="ac_k1" style="display:block;font-weight:600">1. Basemaps key: the aerial photo</label><input class="in" id="ac_k1" value="'+esc(hk)+'" placeholder="Starts with c01" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="small" style="margin:3px 0 10px">'+badge(tk.k,hk)+' · <a href="https://basemaps.linz.govt.nz/" target="_blank" rel="noopener noreferrer">Get one</a>: open the menu at the top left and copy the API Key.</p>'
+      +'<label class="small" for="ac_k2" style="display:block;font-weight:600">2. Data Service key: zoom to the property and outline its buildings</label><input class="in" id="ac_k2" value="'+esc(hl)+'" placeholder="32 letters and numbers" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="small" style="margin:3px 0 10px">'+badge(tk.l,hl)+' · <a href="https://data.linz.govt.nz/my/api/" target="_blank" rel="noopener noreferrer">Get one</a>: sign in, Create API Key, then use the copy button beside it.</p>'
+      +'<div class="btnrow"><button class="btn primary" type="button" data-act="ac_key">Save and check</button><button class="btn" type="button" data-act="ac_keys">Close</button></div></div>';
+  }
+  if(a.x&&!SM.keys&&(hk||hl))h+='<p class="small" style="margin-top:8px"><button type="button" data-act="ac_keys" style="background:none;border:0;padding:0;font:inherit;color:var(--brand,#0a6f73);text-decoration:underline;cursor:pointer">LINZ keys</button>'+(!hk?' · add a Basemaps key for the aerial photo':!hl?' · add a Data Service key for the outlines':'')+'</p>';
   h+='<p class="small">Source: LINZ NZ Addresses, NZ Primary Parcels and NZ Building Outlines (CC BY 4.0).'+(a.flood?' Flood: Christchurch City Council and Waimakariri District Plan open data.':'')+'</p></div>';return h;}
 
 
@@ -1335,16 +1343,38 @@ function smRefresh(){var n=document.querySelectorAll('[id^="au_"]');for(var i=0;
 function smEnsure(){var a=state.auto;if(!a||!a.x||SM.busy||SM.tried===a.addr)return;if(photos.some(function(p){return p.id==='sitemap';}))return;smBuild();}
 function satUrl(a){return a&&a.x?'https://www.google.com/maps/@?api=1&map_action=map&center='+Number(a.y).toFixed(6)+','+Number(a.x).toFixed(6)+'&zoom=19&basemap=satellite':'';}
 function smTile(u){return new Promise(function(res,rej){var im=new Image();im.crossOrigin='anonymous';im.onload=function(){res(im);};im.onerror=function(){rej(new Error('tile'));};im.src=u;});}
+async function smSaveKeys(){
+  var v1=((document.getElementById('ac_k1')||{}).value||'').trim(),v2=((document.getElementById('ac_k2')||{}).value||'').trim(),hex=/^[0-9a-f]{32}$/i,bm=/^[cd]01[a-z0-9]{10,40}$/i;
+  if(hex.test(v1)&&!v2){v2=v1;v1='';}if(bm.test(v2)&&!v1){v1=v2;v2='';}
+  if(hex.test(v1)&&bm.test(v2)){var sw=v1;v1=v2;v2=sw;}
+  if(v1&&!bm.test(v1)){SM.msg='The Basemaps key should start with c01. Copy it again from basemaps.linz.govt.nz.';smRefresh();return;}
+  if(v2&&!hex.test(v2)){SM.msg='The Data Service key should be 32 letters and numbers. Use the copy button beside the key, because the page only shows the start of it.';smRefresh();return;}
+  try{localStorage.setItem('bd_linzkey',v1);localStorage.setItem('bd_ldskey',v2);}catch(x){}
+  SM.msg='';SM.test={k:v1?'wait':'',l:v2?'wait':''};smRefresh();
+  var a=state.auto,t={k:'',l:''};
+  if(v1){try{var n=Math.pow(2,19),la=a.y*Math.PI/180,r1=await fetch('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/19/'+Math.floor((a.x+180)/360*n)+'/'+Math.floor((1-Math.log(Math.tan(la)+1/Math.cos(la))/Math.PI)/2*n)+'.webp?api='+encodeURIComponent(v1));t.k=r1.ok?'ok':'bad';}catch(e){t.k='net';}}
+  if(v2){try{var r2=await fetch('https://data.linz.govt.nz/services/query/v1/vector.json?key='+encodeURIComponent(v2)+'&layer=50772&x='+a.x+'&y='+a.y+'&max_results=1&radius=0&geometry=false');var j2=r2.ok?await r2.json():null;t.l=j2&&j2.vectorQuery?'ok':'bad';}catch(e){t.l='net';}}
+  SM.test=t;if((!v1||t.k==='ok')&&(!v2||t.l==='ok'))SM.keys=false;
+  SM.tried='';smRefresh();if(t.k==='ok'||t.l==='ok')smBuild();
+}
 function smRings(g){if(!g)return [];var out=[];if(g.type==='Polygon')out.push(g.coordinates[0]);else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){out.push(p[0]);});return out.filter(function(r){return r&&r.length>2;});}
 /* parcel boundary and building outlines for the address, live from the LINZ Data Service */
 async function smOutline(a,lds){
   var base='https://data.linz.govt.nz/services;key='+encodeURIComponent(lds)+'/wfs?service=WFS&version=2.0.0&request=GetFeature&outputFormat=json&srsName=EPSG:4326';
-  var pr=await fetch(base+'&typeNames=layer-50772&count=3&cql_filter='+encodeURIComponent('INTERSECTS(shape,POINT('+a.y+' '+a.x+'))'));
-  if(!pr.ok)throw new Error('lds '+pr.status);
-  var pj=await pr.json(),parcel=[];(pj.features||[]).slice(0,1).forEach(function(f){parcel=parcel.concat(smRings(f.geometry));});
+  var parcel=[],wfs=true;
+  try{var pr=await fetch(base+'&typeNames=layer-50772&count=3&cql_filter='+encodeURIComponent('INTERSECTS(shape,POINT('+a.y+' '+a.x+'))'));if(!pr.ok)throw new Error('wfs');var pj=await pr.json();(pj.features||[]).slice(0,1).forEach(function(f){parcel=parcel.concat(smRings(f.geometry));});}
+  catch(e){ /* some keys are not allowed the WFS service, so ask the query service instead */
+    wfs=false;var qb='https://data.linz.govt.nz/services/query/v1/vector.json?key='+encodeURIComponent(lds)+'&geometry=true&x='+a.x+'&y='+a.y;
+    var qr=await fetch(qb+'&layer=50772&max_results=3&radius=0');if(!qr.ok)throw new Error('lds '+qr.status);
+    var qj=await qr.json(),ql=qj.vectorQuery&&qj.vectorQuery.layers&&qj.vectorQuery.layers['50772'];((ql&&ql.features)||[]).slice(0,1).forEach(function(f){parcel=parcel.concat(smRings(f.geometry));});
+  }
   if(!parcel.length)return {parcel:[],blds:[]};
   var b=[1e9,1e9,-1e9,-1e9];parcel.forEach(function(r){var q=smBounds(r);b=[Math.min(b[0],q[0]),Math.min(b[1],q[1]),Math.max(b[2],q[2]),Math.max(b[3],q[3])];});
   var blds=[];
+  var keep=function(g){smRings(g).forEach(function(r){var cx=0,cy=0;r.forEach(function(p){cx+=p[0];cy+=p[1];});cx/=r.length;cy/=r.length;if(parcel.some(function(pg){return smInside(cx,cy,pg);}))blds.push(r);});};
+  if(!wfs){try{var rad=Math.min(1000,Math.ceil(Math.max((b[2]-b[0])*111320*Math.cos(a.y*Math.PI/180),(b[3]-b[1])*110540)*0.75)+10);
+    var q2=await fetch(qb+'&layer=101290&max_results=100&radius='+rad);if(q2.ok){var j2=await q2.json(),l2=j2.vectorQuery&&j2.vectorQuery.layers&&j2.vectorQuery.layers['101290'];((l2&&l2.features)||[]).forEach(function(f){keep(f.geometry);});}}catch(e){}
+    return {parcel:parcel,blds:blds,bounds:b};}
   try{var br=await fetch(base+'&typeNames=layer-101290&count=400&cql_filter='+encodeURIComponent("BBOX(shape,"+b[0]+","+b[1]+","+b[2]+","+b[3]+",'EPSG:4326')"));
     if(br.ok){var bj=await br.json();(bj.features||[]).forEach(function(f){smRings(f.geometry).forEach(function(r){var cx=0,cy=0;r.forEach(function(p){cx+=p[0];cy+=p[1];});cx/=r.length;cy/=r.length;if(parcel.some(function(pg){return smInside(cx,cy,pg);}))blds.push(r);});});}}catch(e){}
   return {parcel:parcel,blds:blds,bounds:b};
@@ -1355,7 +1385,7 @@ async function smBuild(){
   SM.busy=true;SM.tried=a.addr;SM.msg='Preparing the site photo…';smRefresh();
   try{
     var W=960,H=640,FOOT=34,o=null,note='';
-    if(lds){try{o=await smOutline(a,lds);}catch(e){note=' The outlines could not be loaded, so check the LINZ Data Service key.';}}
+    if(lds){try{o=await smOutline(a,lds);}catch(e){note=' The outlines could not be loaded. Tap LINZ keys below to check the Data Service key.';}}
     var hasP=o&&o.parcel.length;
     var mx=function(lon,z){return (lon+180)/360*Math.pow(2,z)*256;},my=function(lat,z){var r=lat*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z)*256;};
     var z=20,clon=a.x,clat=a.y;
@@ -1370,7 +1400,7 @@ async function smBuild(){
     if(key){try{var jobs=[];
       for(var tx=Math.floor(x0/ts);tx<=Math.floor((x0+W-1)/ts);tx++)for(var ty=Math.floor(y0/ts);ty<=Math.floor((y0+H-1)/ts);ty++)(function(tx,ty){
         jobs.push(smTile('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/'+zt+'/'+tx+'/'+ty+'.webp?api='+encodeURIComponent(key)).then(function(im){cx.drawImage(im,Math.floor(tx*ts-x0),Math.floor(ty*ts-y0),Math.ceil(ts)+1,Math.ceil(ts)+1);}));})(tx,ty);
-      await Promise.all(jobs);photo=true;}catch(e){cx.fillStyle='#e9edf0';cx.fillRect(0,0,W,H);note+=' The aerial photo could not be loaded, so check your connection and the LINZ Basemaps key.';}}
+      await Promise.all(jobs);photo=true;}catch(e){cx.fillStyle='#e9edf0';cx.fillRect(0,0,W,H);note+=' The aerial photo could not be loaded. Tap LINZ keys below to check the Basemaps key.';}}
     if(!photo&&!hasP)throw new Error('nothing');
     var path=function(r){cx.beginPath();r.forEach(function(p,i){var X=mx(p[0],z)-x0,Y=my(p[1],z)-y0;if(i)cx.lineTo(X,Y);else cx.moveTo(X,Y);});cx.closePath();};
     cx.lineJoin='round';
@@ -1392,7 +1422,7 @@ async function smBuild(){
     else if(photos.length>=MAX_PHOTOS)SM.msg='Remove a photo first. The limit is '+MAX_PHOTOS+'.';
     else{photos.unshift({id:'sitemap',caption:(photo?'Aerial photo of the site':'Site plan')+(hasP?' with the land parcel and building outlines':'')+'. LINZ, CC BY 4.0. Indicative only.',name:'site-aerial.jpg',blob:blob,size:blob.size,url:URL.createObjectURL(blob)});
       SM.msg='Added to the submission.'+note+(photo&&!lds?' Add a LINZ Data Service key to zoom to the property and outline its buildings.':'')+(!photo&&!key?' Add a LINZ Basemaps key to put the aerial photo behind it.':'');}
-  }catch(e){SM.msg='The site photo could not be loaded. Check your connection and your LINZ keys. The satellite link still works.';}
+  }catch(e){SM.msg='The site photo could not be loaded. Tap LINZ keys below and press Save and check to see which key is the problem. The satellite link still works.';}
   finally{SM.busy=false;smRefresh();}
 }
 
@@ -2618,7 +2648,8 @@ main.addEventListener('click',function(e){
     staffStore(l,i);staffApply();render(true);var m2=document.getElementById('staffmsg');if(m2)m2.textContent='Saved. '+nm+' is completing this review.';return;}
   if(a==='staff_del'){var l2=staffList().slice(),j=parseInt(document.getElementById('staffSel').value,10)||0;if(l2.length>1&&j<l2.length){l2.splice(j,1);staffStore(l2,0);staffApply();render(true);}return;}
   if(a==='ac_map'){smBuild();return;}
-  if(a==='ac_key'){var kv=(document.getElementById('ac_keyin')||{}).value||'';kv=kv.trim();var kn=/^[0-9a-f]{32}$/i.test(kv)?'bd_ldskey':/^[cd]01[a-z0-9]{15,40}$/i.test(kv)?'bd_linzkey':'';if(!kn){SM.msg='That does not look like a LINZ key. A Basemaps key starts with c01. A Data Service key is 32 letters and numbers.';smRefresh();return;}try{localStorage.setItem(kn,kv);}catch(x){}SM.msg='';SM.tried='';smBuild();return;}
+  if(a==='ac_keys'){SM.keys=!SM.keys;smRefresh();return;}
+  if(a==='ac_key'){smSaveKeys();return;}
   if(a==='ac_pick'){acPick(b.dataset.for,parseInt(b.dataset.i,10));return;}
   if(a==='ac_area'){var hl='line:house';if(state.auto&&state.lines.indexOf('house')>-1){set(hl,'area',String(state.auto.bsum));render(true);}return;}
   if(a==='qsload'){var qf=document.getElementById('qsFile');if(qf)qf.click();return;}
