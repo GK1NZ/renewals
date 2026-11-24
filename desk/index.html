@@ -4310,6 +4310,7 @@ X.guide=function(steps,opts){
   el.querySelector('[data-t="skip"]').textContent=opts.skipLabel||"Skip";
   function place(still){
     var st=steps[i],t=target(st);
+    if(t&&still){var q=rectOf(t);if(q.height<window.innerHeight*0.85&&(q.top<0||q.bottom>window.innerHeight))still=false}
     if(t&&!still){try{t.el.scrollIntoView({block:"center",inline:"nearest"})}catch(e){}}
     var r=t?rectOf(t):null,vw=window.innerWidth,vh=window.innerHeight,pad=st.pad==null?6:st.pad;
     if(r){hole.style.cssText="left:"+(r.left-pad)+"px;top:"+(r.top-pad)+"px;width:"+(r.width+pad*2)+"px;height:"+(r.height+pad*2)+"px";hole.classList.remove("none")}
