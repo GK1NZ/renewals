@@ -224,7 +224,9 @@ try{if(window.parent!==window&&window.parent.__BD_MEM)mem=window.parent.__BD_MEM
 if(!mem)mem=Object.create(null);window.__BD_MEM=mem;
 /* the LINZ keys can be read from real storage so the site photo works in the demo; they are never written back */
 var PASS={bd_linzkey:1,bd_ldskey:1};
-P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?g.call(this,key):null}return g.apply(this,arguments)};
+/* the demo shows the site photo for every visitor: these keys are used only in the demo, and only when the visitor has none of their own */
+var DEF={bd_linzkey:"c01m86jt940vb74hzxkg100jysw",bd_ldskey:"8023658f46d44d30bd47275fb2ee78f4"};
+P.getItem=function(key){if(this===ls){key=String(key);if(key in mem)return mem[key];return PASS[key]?(g.call(this,key)||DEF[key]):null}return g.apply(this,arguments)};
 P.setItem=function(key,v){if(this===ls){mem[String(key)]=String(v);return}return s.apply(this,arguments)};
 P.removeItem=function(key){if(this===ls){delete mem[String(key)];return}return r.apply(this,arguments)};
 P.key=function(i){if(this===ls)return Object.keys(mem)[i]||null;return k.apply(this,arguments)};
@@ -1390,7 +1392,7 @@ function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())retu
       +'<label class="small" for="ac_k2" style="display:block;font-weight:600">2. Data Service key: zoom to the property and outline its buildings</label><input class="in" id="ac_k2" value="'+esc(hl)+'" placeholder="32 letters and numbers" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="small" style="margin:3px 0 10px">'+badge(tk.l,hl)+' · <a href="https://data.linz.govt.nz/my/api/" target="_blank" rel="noopener noreferrer">Get one</a>: sign in, Create API Key, then use the copy button beside it.</p>'
       +'<div class="btnrow"><button class="btn primary" type="button" data-act="ac_key">Save and check</button><button class="btn" type="button" data-act="ac_keys">Close</button></div></div>';
   }
-  if(a.x&&!SM.keys&&(hk||hl))h+='<p class="small" style="margin-top:8px"><button type="button" data-act="ac_keys" style="background:none;border:0;padding:0;font:inherit;color:var(--brand,#0a6f73);text-decoration:underline;cursor:pointer">LINZ keys</button>'+(!hk?' · add a Basemaps key for the aerial photo':!hl?' · add a Data Service key for the outlines':'')+'</p>';
+  if(a.x&&!SM.keys&&(hk||hl)&&!window.__BD_DEMO)h+='<p class="small" style="margin-top:8px"><button type="button" data-act="ac_keys" style="background:none;border:0;padding:0;font:inherit;color:var(--brand,#0a6f73);text-decoration:underline;cursor:pointer">LINZ keys</button>'+(!hk?' · add a Basemaps key for the aerial photo':!hl?' · add a Data Service key for the outlines':'')+'</p>';
   h+='<p class="small">Source: LINZ NZ Addresses, NZ Primary Parcels and NZ Building Outlines (CC BY 4.0).'+(a.flood?' Flood: Christchurch City Council and Waimakariri District Plan open data.':'')+'</p></div>';return h;}
 
 
