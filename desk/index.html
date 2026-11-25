@@ -214,7 +214,7 @@ table.t{border-collapse:collapse;width:100%;min-width:900px}
         <button type="button" id="wk">Weekly summary</button>
         <button type="button" id="rep">Month-end report</button>
         <button type="button" id="ubook">Underwriters</button>
-        <button type="button" id="wording">Email wording</button>
+        <button type="button" id="wording">Email templates</button>
         <label for="imp" class="mi">Import CSV</label><input id="imp" type="file" accept=".csv,text/csv" hidden>
         <button type="button" id="exp">Export CSV</button>
         <button type="button" id="backup">Back up everything</button>
@@ -336,7 +336,7 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.0 (25 Nov 2026)"};</script>
+<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.1 (26 Nov 2026)"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
 /*! @azure/msal-common v14.16.0 2024-12-12 */
@@ -1599,8 +1599,9 @@ async function openSend(id){
   if(!PORTAL_URL){toast("Add your client form web address in Settings first.");return}
   var code=HASH_LINKS?"":await gzipB64(prefillObject(r)),plink=HASH_LINKS?await prefillLink(prefillObject(r)):"";
   var first=(r.contact||"").trim().split(/\s+/)[0];
-  var subj="Your insurance renewal"+(r.date?" - "+fmtDate(nextYearDate(r.date)):"")+" - "+r.client;
-  var body=HASH_LINKS?"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\nOpen your form here (it already has your details filled in, so you only need to check and update them):\n"+plink+"\n\nWhen you reach the end, follow the last step to send your answers to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+SIGN:"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\n1. Open the form: "+PORTAL_URL+"\n2. On the first screen, open \"Did your broker send you a pre-fill code?\" and paste in the code below. It fills in what we held at your last review so you only need to check and update it.\n3. At the end it will ask you to copy your answers into an email back to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+code+"\n\n"+SIGN;
+  var tv={name:first||"there",client:r.client||"","renewal date":r.date?fmtDate(nextYearDate(r.date)):"",link:plink,phone:CFG.phone,signature:SIGN};
+  var subj=tplSubj("form",tv);
+  var body=HASH_LINKS?tplMerge(tplGet("form").b,tv):"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\n1. Open the form: "+PORTAL_URL+"\n2. On the first screen, open \"Did your broker send you a pre-fill code?\" and paste in the code below. It fills in what we held at your last review so you only need to check and update it.\n3. At the end it will ask you to copy your answers into an email back to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+code+"\n\n"+SIGN;
   sendCtx={r:r,subj:subj,body:body};
   openSheet2("Send renewal information to client",'<p class="note" style="margin:0 0 8px">'+(r.portal?"Includes the answers last collected from this client.":"This client has not used the form yet, so the code carries the details held in Broker Desk.")+" "+(HASH_LINKS?"The link opens the form with these details already filled in.":"They paste the code into the form's first screen.")+"</p><div class=\"full\"><label for=\"sendto\">To</label><input class=\"in\" id=\"sendto\" type=\"email\" value=\""+esc(r.email||"")+"\"></div><div class=\"full\"><label for=\"sendsub\">Subject</label><input class=\"in\" id=\"sendsub\" value=\""+esc(subj)+"\"></div><div class=\"full\"><label for=\"sendbody\">Email</label><textarea class=\"in\" id=\"sendbody\" style=\"min-height:260px;font-family:var(--mono);font-size:12px\"></textarea></div><p class=\"note\" id=\"sendmsg\"></p>",(mcpOutlook?'<button class="btn pri" type="button" id="senddraft">Create email draft</button>':'')+'<button class="btn'+(mcpOutlook?'':' pri')+'" type="button" id="sendcopy">Copy email</button>');
   $("sendbody").value=body;
@@ -1646,14 +1647,14 @@ var WF=null;
 var CF_TPL="Hi {name},\n\nThank you for completing your renewal information. Below is a copy of your answers.\n\n{answers}\n\nPlease reply to confirm these details are correct, or let me know if anything needs changing\u2014including any new vehicles, equipment, premises, or changes to sums insured.\n\n{message}\n\nOnce I have your confirmation, I will approach the insurers for terms.\n\n{signature}";
 
 function pinHash(p){var h1=0xdeadbeef,h2=0x41c6ce57,s='psc|'+p;for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return String(4294967296*(2097151&h2)+(h1>>>0))}
-var WORD_OK=false;
+var WORD_OK=false,WANT_PIN=false;
 function openWording(unlocked,msg){
   var pin=safeGet("rr_pin");
   if(unlocked)WORD_OK=true;
+  if(!pin&&!WANT_PIN)WORD_OK=true;
   if(!WORD_OK){
-    openSheet2("Email wording (locked)",'<p class="note" style="margin:0 0 8px">'+(pin?"Enter your setup PIN to change the standard wording of the client confirmation email.":"Choose a PIN of 4 to 8 digits. It will be asked for each time the standard wording is changed.")+'</p><div class="full"><label for="wdpin">'+(pin?"PIN":"New PIN")+'</label><input class="in" id="wdpin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></div><p class="note" id="wdmsg">'+esc(msg||"")+'</p>','<button class="btn pri" type="button" id="wdgo">'+(pin?"Unlock":"Set PIN")+'</button>');return}
-  var tpl=safeGet("rr_cftpl")||CF_TPL;
-  openSheet2("Email wording",'<p class="note" style="margin:0 0 8px">This is the standard client confirmation email. Use {name}, {answers}, {message} and {signature} where those should go. {message} is the personal note you add to each email.</p><textarea class="in" id="wdtext" style="min-height:300px">'+esc(tpl)+'</textarea><p class="note" id="wdmsg">'+esc(msg||"")+'</p>','<button class="btn pri" type="button" id="wdsave">Save wording</button><button class="btn" type="button" id="wdreset">Reset to standard</button><button class="btn" type="button" id="wdlock">Lock</button>');
+    openSheet2("Email templates (locked)",'<p class="note" style="margin:0 0 8px">'+(pin?"Enter your PIN to change the email templates.":"Choose a PIN of 4 to 8 digits. It will be asked for each time the email templates are opened for changes.")+'</p><div class="full"><label for="wdpin">'+(pin?"PIN":"New PIN")+'</label><input class="in" id="wdpin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></div><p class="note" id="wdmsg">'+esc(msg||"")+'</p>','<button class="btn pri" type="button" id="wdgo">'+(pin?"Unlock":"Set PIN")+'</button>');return}
+  WANT_PIN=false;tplList(msg);
 }
 function wordingClick(id){
   if(id==="wdgo"){var p=$("wdpin").value.trim(),pin=safeGet("rr_pin");
@@ -1661,10 +1662,11 @@ function wordingClick(id){
     else if(pinHash(p)===pin)openWording(true);else $("wdmsg").textContent="That PIN isn't right."}
   if(id==="wdsave"){var t=$("wdtext").value;if(t.indexOf("{answers}")<0){$("wdmsg").textContent="Keep {answers} in the email so the client sees their answers.";return}safeSet("rr_cftpl",t);$("wdmsg").textContent="Saved. New confirmation emails will use this wording."}
   if(id==="wdreset"){safeSet("rr_cftpl","");openWording(true,"Reset to the standard wording.")}
-  if(id==="wdlock"){WORD_OK=false;closeSheet2()}
+  if(id==="wdlock"){WORD_OK=false;TPE=null;closeSheet2()}
 }
 function cfBuild(tpl,first,ans,msg){
   if(tpl.indexOf("{message}")<0)tpl=tpl.indexOf("Once I have")>=0?tpl.replace("Once I have","{message}\n\nOnce I have"):tpl.replace("{signature}","{message}\n\n{signature}");
+  tpl=tplMerge(tpl,{client:(WF&&byId[WF.id]||{}).client||""});
   var t=tpl.split("{name}").join(first||"there").split("{answers}").join(ans||"(No answers are saved against this renewal yet.)").split("{signature}").join(SIGN);
   if(t.indexOf("{message}")>=0)t=msg.trim()?t.split("{message}").join(msg.trim()):t.split("{message}").join("").replace(/\n{3,}/g,"\n\n");
   return t;
@@ -1672,8 +1674,8 @@ function cfBuild(tpl,first,ans,msg){
 function openConfirm(id){
   var r=byId[id];if(!r)return;WF={id:id};
   var first=(r.contact||"").trim().split(/\s+/)[0],ans=answersText(r);
-  var subj="Please confirm your renewal details - "+r.client;
-  var tpl=safeGet("rr_cftpl")||CF_TPL;
+  var subj=tplSubj("confirm",{client:r.client});
+  var tpl=cfTpl();
   var body=cfBuild(tpl,first,ans,"");
   openSheet2("Confirm answers with client",'<p class="note" style="margin:0 0 8px">This creates an email draft with the client\u2019s answers in it. You check it and send it.</p><div class="full"><label for="cfto">To</label><input class="in" id="cfto" type="email" value="'+esc(r.email||"")+'"></div><div class="full" style="margin-top:8px"><label for="cfsub">Subject</label><input class="in" id="cfsub" value="'+esc(subj)+'"></div><div class="full" style="margin-top:8px"><label for="cfpm">Your message to this client (optional)</label><textarea class="in" id="cfpm" style="min-height:70px" placeholder="e.g. I noticed the Hilux is due for re-valuation, can you confirm its sum insured?"></textarea></div><div class="full" style="margin-top:8px"><label for="cfbody">Email (typing a message above rebuilds this)</label><textarea class="in" id="cfbody" style="min-height:300px">'+esc(body)+'</textarea></div><p class="note" id="cfmsg"></p>','<button class="btn pri" type="button" id="cfgo">Create email draft</button><button class="btn" type="button" id="cfcopy">Copy email</button>');
 }
@@ -1728,7 +1730,7 @@ function ubDel(id){
 }
 function ubLearn(done){done.forEach(function(u){var k=ubFind(u.n);if(k){if(k.e!==u.e)ubPut(Object.assign({},k,{e:u.e}))}else ubPut({id:ubId(),n:u.n,e:u.e,c:"",ph:""})})}
 function uwBody(r){
-  var L=["Hi team,","","Please find our renewal submission for the client below. We would appreciate your renewal terms as soon as you can, and please come back to me if you need anything further.","","Client: "+r.client];
+  var L=["Client: "+r.client];
   if(r.industry)L.push("Industry: "+r.industry);
   if(r.address)L.push("Address: "+r.address);
   if(r.address&&window.__BDX){var sl=window.__BDX.satLink(r);if(sl)L.push((r.geo?"Satellite view of the site: ":"Map of the site: ")+sl)}
@@ -1738,8 +1740,7 @@ function uwBody(r){
   if(r.prem!==""&&r.prem!=null)L.push("Expiring premium: "+money(r.prem));
   if(r.lines)L.push("Covers: "+r.lines);
   if(r.sum!==""&&r.sum!=null)L.push("Total sums insured: "+money(r.sum));
-  L.push("","Client answers:","",answersText(r)||"(See attached.)","",SIGN);
-  return L.join("\n");
+  return tplMerge(tplGet("uw").b,{client:r.client||"","renewal date":r.date?fmtDate(nextYearDate(r.date)):"",details:L.join("\n"),answers:answersText(r)||"(See attached.)",signature:SIGN});
 }
 function drawUW(){
   var chips=UB.length?'<div class="uwchips" role="group" aria-label="Address book" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+UB.map(function(b){var on=UWR.some(function(u){return u.on&&u.n.toLowerCase()===b.n.toLowerCase()});return '<button type="button" class="btn sm uwchip" data-ubn="'+esc(b.n)+'" aria-pressed="'+on+'"'+(on?' style="background:var(--accent);color:#fff;border-color:var(--accent)"':'')+'>'+(on?"\u2713 ":"")+esc(b.n)+'</button>'}).join("")+'</div>':'<p class="note" style="margin:0 0 8px">Your address book is empty. Type an underwriter below and they are saved for next time.</p>';
@@ -1751,7 +1752,7 @@ function openUW(id){
   var r=byId[id];if(!r)return;WF={id:id};
   var inUse={};(r.quotes||[]).forEach(function(q){inUse[(q.ins||"").toLowerCase()]=1});
   UWR=[{n:"",e:"",on:false}];
-  var subj="Renewal submission - "+r.client+(r.date?" - renewal "+fmtDate(nextYearDate(r.date)):"");
+  var subj=tplSubj("uw",{client:r.client||"","renewal date":r.date?fmtDate(nextYearDate(r.date)):""});
   openSheet2("Send to underwriters",'<p class="note" style="margin:0 0 8px">Tap underwriters from your address book, or type a name, then check their email addresses. Each gets its own email draft, and nothing is sent until you send it yourself.'+((r.quotes||[]).length?" Already approached: "+esc(r.quotes.map(function(q){return q.ins}).filter(Boolean).join(", "))+".":"")+'</p><div id="uwrows"></div><button class="btn sm" type="button" id="uwadd">Add a row</button><div class="full" style="margin-top:10px"><label for="uwsub">Subject</label><input class="in" id="uwsub" value="'+esc(subj)+'"></div><div class="full" style="margin-top:8px"><label for="uwbody">Message</label><textarea class="in" id="uwbody" style="min-height:280px">'+esc(uwBody(r))+'</textarea></div>'+(mcp?'<label class="note" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="uwcal" checked> Add a chase reminder to my calendar for '+esc(fmtDate(addDays(today(),UW_CHASE)))+' ('+UW_CHASE+' days)</label>':'')+'<p class="note" id="uwmsg"></p>','<button class="btn pri" type="button" id="uwgo">Create email drafts</button>');
   drawUW();
 }
@@ -2100,8 +2101,8 @@ function openChase(id){
   var known=uwKnown();
   UWR=late.map(function(q){var k=known.filter(function(x){return x.n.toLowerCase()===(q.ins||"").toLowerCase()})[0];return{n:q.ins||"",e:k?k.e:"",on:true}});
   if(!UWR.length)UWR=[{n:"",e:"",on:true}];
-  var subj="Renewal terms - "+r.client+(r.date?" - renewal "+fmtDate(nextYearDate(r.date)):"");
-  var body="Hi team,\n\nI'm following up on the renewal submission I sent for "+r.client+". Could you please let me know where you are with terms, or tell me if you need anything further from me?\n\nThank you,\n\n"+SIGN;
+  var tv={client:r.client||"","renewal date":r.date?fmtDate(nextYearDate(r.date)):"",signature:SIGN},subj=tplSubj("chase",tv);
+  var body=tplMerge(tplGet("chase").b,tv);
   openSheet2("Chase underwriters",'<p class="note" style="margin:0 0 8px">These underwriters haven’t replied after '+UW_CHASE+' days. Each gets its own email draft.</p><div id="uwrows"></div><button class="btn sm" type="button" id="uwadd">Add another</button><div class="full" style="margin-top:10px"><label for="chsub">Subject</label><input class="in" id="chsub" value="'+esc(subj)+'"></div><div class="full" style="margin-top:8px"><label for="chbody">Message</label><textarea class="in" id="chbody" style="min-height:200px">'+esc(body)+'</textarea></div><p class="note" id="chmsg"></p>','<button class="btn pri" type="button" id="chgo">Create chase drafts</button>');
   drawUW();
 }
@@ -2377,7 +2378,7 @@ $("pimp").addEventListener("click",openPortalImport);
 $("wk").addEventListener("click",openSummary);$("rep").addEventListener("click",openReport);$("ubook").addEventListener("click",function(){BKBACK=null;openBook()});$("wording").addEventListener("click",function(){openWording(false)});
 $("p2body").addEventListener("change",function(e){var t=e.target;if(t.dataset&&t.dataset.k==="n"){var b=ubFind(t.value);var row=t.closest(".uwr");if(b&&row){var em=row.querySelector('[data-k="e"]');if(!em.value)em.value=b.e;row.querySelector('[data-k="on"]').checked=true}}});
 $("p2body").addEventListener("input",function(e){
-  if(e.target.id==="cfpm"){var r1=WF&&byId[WF.id];if(r1)$("cfbody").value=cfBuild(safeGet("rr_cftpl")||CF_TPL,(r1.contact||"").trim().split(/\s+/)[0],answersText(r1),e.target.value);return}
+  if(e.target.id==="cfpm"){var r1=WF&&byId[WF.id];if(r1)$("cfbody").value=cfBuild(cfTpl(),(r1.contact||"").trim().split(/\s+/)[0],answersText(r1),e.target.value);return}
   var t=e.target;if(!t||!t.closest)return;
   if(t.id==="tfee"){[].slice.call(document.querySelectorAll('#termsbody [data-t="fee"][data-auto="1"]')).forEach(function(i){i.value=t.value;recalcBlock(i.closest(".tb"))});return}
   if(t.hasAttribute&&t.hasAttribute("data-si")){readSI();[].slice.call(document.querySelectorAll("#termsbody .tb")).forEach(recalcBlock);return}
@@ -2410,8 +2411,8 @@ $("p2foot").addEventListener("click",function(e){
   if(e.target.id==="pastego")doPaste();
   if(e.target.id==="pimpgo")doPortalImport();
   if(e.target.id==="cfgo")doConfirm();
-  if(e.target.id==="cfsavetpl"){var t=$("cfbody").value,r0=WF&&byId[WF.id];if(r0){var fn=(r0.contact||"").trim().split(/\s+/)[0],an=answersText(r0);if(fn)t=t.split("Hi "+fn+",").join("Hi {name},");if(an)t=t.split(an).join("{answers}");t=t.split(SIGN).join("{signature}");var pm=($("cfpm")&&$("cfpm").value.trim());if(pm)t=t.split(pm).join("{message}")}if(t.indexOf("{answers}")<0){$("cfmsg").textContent="Keep the answers in the message so I can save the wording.";return}safeSet("rr_cftpl",t);$("cfmsg").textContent="Saved. New confirmation emails will use this wording."}
-  if(e.target.id==="cfresettpl"){safeSet("rr_cftpl","");if(WF)openConfirm(WF.id);toast("Wording reset")}
+  if(e.target.id==="cfsavetpl"){var t=$("cfbody").value,r0=WF&&byId[WF.id];if(r0){var fn=(r0.contact||"").trim().split(/\s+/)[0],an=answersText(r0);if(fn)t=t.split("Hi "+fn+",").join("Hi {name},");if(an)t=t.split(an).join("{answers}");t=t.split(SIGN).join("{signature}");var pm=($("cfpm")&&$("cfpm").value.trim());if(pm)t=t.split(pm).join("{message}")}if(t.indexOf("{answers}")<0){$("cfmsg").textContent="Keep the answers in the message so I can save the wording.";return}cfSet(t);$("cfmsg").textContent="Saved. New confirmation emails will use this wording."}
+  if(e.target.id==="cfresettpl"){cfSet("");if(WF)openConfirm(WF.id);toast("Wording reset")}
   if(e.target.id==="cfcopy"){navigator.clipboard.writeText($("cfbody").value).then(function(){toast("Copied")},function(){$("cfbody").select()})}
   if(e.target.id==="uwgo")doUW();
   if(e.target.id==="chgo")doChase();
@@ -2464,6 +2465,150 @@ window.__R=(function(){var L={},D={};return{
   qBase:function(q){return q.chased||q.sent||""},UW_CHASE:UW_CHASE,STATUS:STATUS,CLOSED:CLOSED,safeGet:safeGet,safeSet:safeSet,get SIGN(){return SIGN},openProc:openProc,setProfile:setProfile,getProfile:function(){return Object.assign({},CFG,{portal:PORTAL_URL})},
   qCalc:function(q){return qCalc(q)},openChase:function(i){openChase(i)},assets:function(){return assets},STATUS_LIST:STATUS,pasteJson:function(t){openPaste();$("pastebox").value=t;doPaste()},ub:function(){return UB},rollForward:rollForward,render:function(){render()},setStatus:setStatus,saveSheet:saveSheet,addRecord:function(o){if(!coll||!canWrite){toast("Saving isn't available in this view.");return Promise.resolve(null)}var d=clean(Object.assign({status:"To start",owner:safeGet("rr_owner")},o));if(!d.followUp&&d.date){var f=addDays(d.date,-60);d.followUp=f<today()?today():f}withLog(null,d);return write(coll.add(d)).then(function(x){return x&&x.id})},sheetDirty:sheetDirty,openPortalImport:function(){openPortalImport()},openPaste:function(){openPaste()},openSend:function(i){openSend(i)},openLink:function(){openLink()},closeSheet:function(){closeSheet()},calendar:function(){calendar()}
 }})();
+/* ---- Email templates ---- */
+var TPL={},tplDoc=null,tplLoaded=false,TPE=null,TPF=null;
+var TPL_DEF={
+  form:{n:"Renewal form request",d:"Sent to the client with the link to their renewal form.",s:"Your insurance renewal - {renewal date} - {client}",
+    b:"Hi {name},\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\nOpen your form here (it already has your details filled in, so you only need to check and update them):\n{link}\n\nWhen you reach the end, follow the last step to send your answers to me.\n\nIf you get stuck, call me on {phone}.\n\n{signature}",
+    f:["name","client","renewal date","link","phone","signature"],req:["link"]},
+  confirm:{n:"Confirm answers with client",d:"Sent after the client completes the form or a meeting, so they can confirm their details.",s:"Please confirm your renewal details - {client}",b:CF_TPL,
+    f:["name","client","answers","message","signature"],req:["answers"]},
+  uw:{n:"Underwriter submission",d:"Sent to each underwriter when you go to market.",s:"Renewal submission - {client} - renewal {renewal date}",
+    b:"Hi team,\n\nPlease find our renewal submission for the client below. We would appreciate your renewal terms as soon as you can, and please come back to me if you need anything further.\n\n{details}\n\nClient answers:\n\n{answers}\n\n{signature}",
+    f:["client","renewal date","details","answers","signature"],req:["details"]},
+  chase:{n:"Underwriter chase",d:"Sent to underwriters who have not replied.",s:"Renewal terms - {client} - renewal {renewal date}",
+    b:"Hi team,\n\nI'm following up on the renewal submission I sent for {client}. Could you please let me know where you are with terms, or tell me if you need anything further from me?\n\nThank you,\n\n{signature}",
+    f:["client","renewal date","signature"],req:[]},
+  quote:{n:"Quote letter to client",d:"The recommendation email. The markets list, comparison table, graph and endorsement lists are built for you; this is the wording around them.",s:"Your insurance quotes - {client}",
+    sec:{intro:"Thank you for your patience. I have been to market for your insurance and have set out the results below so you can see how the options compare.",
+      chartnote:"The graph shows the total cost for each insurer that offered terms for all of your cover. Insurers who could not offer everything have been removed, so you are comparing like with like.",
+      scope:"Cover in this review: {covers}.\nYour goals: ",
+      rec:"Based on cost and coverage we would recommend the {recommended insurer} option for {client}",
+      endnote:"The endorsements applied by each insurer are listed below.",
+      attach:"The insurer quotations are attached for your reference.",
+      next:"To go ahead, reply to confirm which insurer you would like to place your cover with. If you would like to talk it through first, give me a call and we will go over it together."},
+    f:["client","covers","recommended insurer"],req:[]},
+  proc:{n:"Processing instruction",d:"Sent to your processing team once the client accepts. The details and quote table are added for you.",s:"Please process: {client} - {insurer} - {renewal date}",
+    b:"Please process this placement as per the quotation below.\n- Place cover with the accepted insurer and confirm the terms and endorsements match the table.\n- Raise the invoice and send documents to the client once confirmed.\nSpecial instructions: ",
+    f:["client","insurer","renewal date"],req:[]}
+};
+var TPL_SEC=[["intro","Opening"],["chartnote","Note above the graph"],["scope","Scope and goals"],["rec","Recommendation"],["endnote","Line above the endorsement lists"],["attach","Attachments line"],["next","Next steps"]];
+var TPL_ORDER=["quote","form","confirm","uw","chase","proc"];
+function tplLoad(){
+  if(tplLoaded||!db)return;tplLoaded=true;
+  try{tplDoc=db.doc("config/templates");tplDoc.get().then(function(d){if(d&&d.exists){var it=d.data().items;if(it&&typeof it==="object")TPL=JSON.parse(JSON.stringify(it))}}).catch(function(){})}catch(e){}
+}
+function tplGet(k){
+  var d=TPL_DEF[k],t=TPL[k]||{},o={s:t.s!=null?t.s:d.s};
+  if(d.sec){o.sec={};TPL_SEC.forEach(function(x){o.sec[x[0]]=t.sec&&t.sec[x[0]]!=null?t.sec[x[0]]:d.sec[x[0]]})}
+  else o.b=t.b!=null?t.b:(k==="confirm"&&safeGet("rr_cftpl"))||(k==="proc"&&safeGet("rr_proctpl"))||d.b;
+  return o;
+}
+function tplChanged(k){var t=TPL[k];return !!(t&&(t.s!=null||t.b!=null||t.sec))||(k==="confirm"&&!!safeGet("rr_cftpl"))||(k==="proc"&&!!safeGet("rr_proctpl"))}
+function tplMerge(t,v){return String(t==null?"":t).replace(/\{([a-z][a-z ]*)\}/gi,function(m,k){k=k.toLowerCase();return Object.prototype.hasOwnProperty.call(v,k)&&v[k]!=null?String(v[k]):m})}
+function tplSubj(k,v){
+  return tplGet(k).s.split(" - ").filter(function(seg){var m=seg.match(/\{([a-z][a-z ]*)\}/gi);if(!m)return true;
+    return m.some(function(x){var key=x.slice(1,-1).toLowerCase();return !Object.prototype.hasOwnProperty.call(v,key)||(v[key]!=null&&String(v[key])!=="")})}).map(function(seg){return tplMerge(seg,v)}).join(" - ");
+}
+function tplSave(){
+  if(!tplDoc||!canWrite){toast("Saving isn't available in this view.");return Promise.resolve(false)}
+  return write(tplDoc.set({items:JSON.parse(JSON.stringify(TPL))})).then(function(){return true}).catch(function(){return false});
+}
+function cfTpl(){return tplGet("confirm").b}
+function cfSet(t){if(t){TPL.confirm=TPL.confirm||{};TPL.confirm.b=t}else if(TPL.confirm){delete TPL.confirm.b}safeSet("rr_cftpl","");tplSave()}
+function tplSample(){
+  var r=docs.filter(function(x){return x.client&&CLOSED.indexOf(x.status)<0})[0]||docs[0]||{client:"Sample Client Ltd",contact:"Sam Sample",lines:"Material Damage, Liability",date:today()};
+  var rec=(r.quotes||[]).filter(function(q){return q.rec})[0];
+  return {name:(r.contact||"").trim().split(/\s+/)[0]||"there",client:r.client||"",covers:r.lines||"your insurance programme","renewal date":r.date?fmtDate(nextYearDate(r.date)):"",link:"[the client's own form link]",phone:CFG.phone,signature:SIGN,
+    answers:"[the client's answers]",message:"[your personal note, if you add one]",details:"Client: "+(r.client||"")+"\n[industry, address, renewal date, insurer, premium, covers, sums insured]","recommended insurer":rec?rec.ins:"[recommended insurer]",insurer:r.placed||r.insurer||"[accepted insurer]"};
+}
+function tplList(msg){
+  TPE=null;var pin=safeGet("rr_pin");
+  openSheet2("Email templates",'<p class="note" style="margin:0 0 10px">These are the standard wordings behind each draft the app writes. Change one here and every new draft uses it. '+(PROVNAME()==="ms"?"Templates are shared with everyone in your team database.":"Templates are saved with your data and included in backups.")+'</p>'+
+    TPL_ORDER.map(function(k){var d=TPL_DEF[k];return '<button type="button" class="tplrow" data-tpl="'+k+'"><span><b>'+esc(d.n)+'</b><br><span class="note">'+esc(d.d)+'</span></span><span class="tpltag'+(tplChanged(k)?' on':'')+'">'+(tplChanged(k)?"Your wording":"Standard")+'</span></button>'}).join("")+
+    '<p class="note" style="margin-top:10px">Emails written inside the Meeting Guide (the client summary sent from a meeting) have their own wording and are not changed here.</p><p class="note" id="wdmsg" role="status">'+esc(msg||"")+'</p>',
+    pin?'<button class="btn" type="button" id="wdlock">Lock</button>':'<button class="btn" type="button" id="tppin">Protect with a PIN</button>');
+  tplCss();
+}
+function PROVNAME(){try{return window.__BDHOST&&window.__BDHOST.mode?window.__BDHOST.mode():""}catch(e){return ""}}
+function tplCss(){
+  if($("tplcss"))return;var s=document.createElement("style");s.id="tplcss";
+  s.textContent=".tplrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:inherit;font:inherit;padding:10px 12px;margin:0 0 6px;cursor:pointer}.tplrow:hover{border-color:var(--accent)}.tpltag{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:2px 8px;white-space:nowrap;color:var(--muted,#666)}.tpltag.on{color:var(--accent);border-color:var(--accent);font-weight:700}"+
+    ".tpf{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px}.tpf button{font:inherit;font-size:12px;border:1px dashed var(--accent);color:var(--accent);background:transparent;border-radius:6px;padding:2px 7px;cursor:pointer}#tpprev{white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px;background:var(--bg,transparent)}";
+  document.head.appendChild(s);
+}
+function tplEdit(k,msg){
+  var d=TPL_DEF[k],t=tplGet(k);TPE=k;TPF=null;tplCss();
+  var h='<p class="note" style="margin:0 0 8px">'+esc(d.d)+'</p><div class="full"><label for="tps">Subject</label><input class="in" id="tps" value="'+esc(t.s)+'"></div>'+
+    '<div style="margin-top:10px"><label>Merge fields <span class="note">(tap to insert; each is filled in for the client when a draft is made)</span></label><div class="tpf">'+d.f.map(function(f){return '<button type="button" data-tpf="{'+esc(f)+'}">{'+esc(f)+'}</button>'}).join("")+'</div></div>';
+  if(d.sec)h+='<p class="note" style="margin:0 0 4px">The letter is built in this order: greeting, Opening, markets approached, Note above the graph, comparison table, Scope and goals, Recommendation, endorsement lists, Attachments line, Next steps, your signature. You can still adjust the wording for one client on the Compare screen.</p><div id="tpupbox" hidden><label for="tpuptext">Your uploaded letter (copy the parts you want into the boxes below)</label><textarea class="in" id="tpuptext" style="min-height:140px" readonly></textarea></div>'+TPL_SEC.map(function(x){return '<div style="margin-top:8px"><label for="tpsec_'+x[0]+'">'+x[1]+'</label><textarea class="in" id="tpsec_'+x[0]+'" style="min-height:70px">'+esc(t.sec[x[0]])+'</textarea></div>'}).join("");
+  else h+='<div class="full"><label for="tpb">'+(k==="proc"?"Instructions":"Email")+'</label><textarea class="in" id="tpb" style="min-height:300px">'+esc(t.b)+'</textarea></div>';
+  h+='<input type="file" id="tpfile" accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden><p class="note">Upload wording takes the text from a Word (.docx) or text file. Letterhead, logos and formatting do not come across.</p><p class="note" id="wdmsg" role="status">'+esc(msg||"")+'</p><div id="tpprev" hidden></div>';
+  openSheet2("Template: "+d.n,h,'<button class="btn pri" type="button" id="tpsave">Save template</button><button class="btn" type="button" id="tpprevb">Preview</button><button class="btn" type="button" id="tpup">Upload wording</button><button class="btn" type="button" id="tpreset">Reset to standard</button><button class="btn" type="button" id="tpback">All templates</button>');
+}
+function tplRead(){
+  var d=TPL_DEF[TPE],o={s:$("tps").value.trim()||d.s};
+  if(d.sec){o.sec={};TPL_SEC.forEach(function(x){o.sec[x[0]]=$("tpsec_"+x[0]).value})}else o.b=$("tpb").value;
+  return o;
+}
+function tplPreviewText(k,o){
+  var v=tplSample(),L=["Subject: "+o.s.split(" - ").map(function(s){return tplMerge(s,v)}).join(" - "),""];
+  if(o.sec){var S=function(x){return tplMerge(o.sec[x],v)};L.push("Hi "+v.name+",","",S("intro"),"","Markets approached:","[built from your insurer list]","",S("chartnote"),"","[graph and comparison table]","","Scope and goals",S("scope"),"","Our recommendation",S("rec"),"",S("endnote"),"[endorsement lists]","",S("attach"),"","Next steps",S("next"),"",SIGN)}
+  else if(k==="proc")L.push("Hi,","",tplMerge(o.b,v),"","[client details and quote table]","",SIGN);
+  else L.push(tplMerge(o.b,v).replace(/\n{3,}/g,"\n\n"));
+  return L.join("\n");
+}
+function tplClick(e){
+  var t=e.target,row=t.closest&&t.closest("[data-tpl]");
+  if(row){tplEdit(row.getAttribute("data-tpl"));return}
+  if(t.getAttribute&&t.getAttribute("data-tpf")){var el=TPF&&document.body.contains(TPF)?TPF:$("tpb")||$("tpsec_intro");if(!el)return;var f=t.getAttribute("data-tpf"),a=el.selectionStart!=null?el.selectionStart:el.value.length,b=el.selectionEnd!=null?el.selectionEnd:a;el.value=el.value.slice(0,a)+f+el.value.slice(b);el.focus();try{el.setSelectionRange(a+f.length,a+f.length)}catch(x){}return}
+  var id=t.id;if(!id||!TPE&&id!=="tppin")return;
+  if(id==="tppin"){WANT_PIN=true;WORD_OK=false;openWording();return}
+  if(id==="tpback"){tplList();return}
+  if(id==="tpup"){$("tpfile").click();return}
+  var d=TPL_DEF[TPE],m=$("wdmsg");
+  if(id==="tpprevb"){var p=$("tpprev");p.hidden=false;p.textContent=tplPreviewText(TPE,tplRead());p.scrollIntoView({block:"nearest"});return}
+  if(id==="tpsave"){var o=tplRead(),miss=(d.req||[]).filter(function(f){return (o.b||"").indexOf("{"+f+"}")<0});
+    if(miss.length){m.textContent="Keep {"+miss[0]+"} in the email. "+(miss[0]==="link"?"It is where the client's form link goes.":miss[0]==="answers"?"It is where the client's answers go.":"It is where the client details go.");return}
+    TPL[TPE]=o;if(TPE==="confirm")safeSet("rr_cftpl","");if(TPE==="proc")safeSet("rr_proctpl","");
+    m.textContent="Saving…";tplSave().then(function(ok){var mm=$("wdmsg");if(mm)mm.textContent=ok?"Saved. New drafts will use this wording.":"Could not save. Check you are online or signed in, then try again."});return}
+  if(id==="tpreset"){delete TPL[TPE];if(TPE==="confirm")safeSet("rr_cftpl","");if(TPE==="proc")safeSet("rr_proctpl","");var k=TPE;tplSave().then(function(){tplEdit(k,"Reset to the standard wording.")});return}
+}
+document.addEventListener("click",function(e){if(e.target&&e.target.closest&&e.target.closest("#sheet2"))tplClick(e)});
+document.addEventListener("focusin",function(e){var t=e.target;if(TPE&&t&&(t.id==="tpb"||t.id==="tps"||/^tpsec_/.test(t.id||"")))TPF=t});
+document.addEventListener("change",function(e){
+  var t=e.target;if(!t||t.id!=="tpfile"||!t.files||!t.files[0])return;var f=t.files[0],m=$("wdmsg");
+  tplFileText(f).then(function(txt){txt=txt.replace(/\r\n?/g,"\n").replace(/\n{3,}/g,"\n\n").trim();if(!txt){m.textContent="No text was found in that file.";return}
+    if(TPL_DEF[TPE].sec){$("tpupbox").hidden=false;$("tpuptext").value=txt;m.textContent="Loaded. Copy the parts you want into the boxes, then Save template."}
+    else{$("tpb").value=txt;var miss=(TPL_DEF[TPE].req||[]).filter(function(x){return txt.indexOf("{"+x+"}")<0});m.textContent="Loaded "+f.name+". "+(miss.length?"Add {"+miss[0]+"} where it belongs (tap the field above), then Save template.":"Add merge fields where you want details filled in, then Save template.")}
+  }).catch(function(err){m.textContent=(err&&err.message)||"That file could not be read."});t.value="";
+});
+function tplFileText(f){
+  var n=(f.name||"").toLowerCase();
+  if(/\.doc$/.test(n))return Promise.reject(new Error("Old .doc files can't be read. Open it in Word, choose Save As, pick Word Document (.docx), and upload that."));
+  if(/\.docx$/.test(n))return f.arrayBuffer().then(docxText);
+  if(/\.(txt|text|md)$/.test(n)||/^text\//.test(f.type||""))return f.text();
+  return Promise.reject(new Error("Use a Word (.docx) or text (.txt) file."));
+}
+function docxText(buf){
+  var u=new Uint8Array(buf),dv=new DataView(buf),e=u.length-22;
+  while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
+  if(e<0)throw new Error("That file isn't a Word .docx document.");
+  var n=dv.getUint16(e+10,true),p=dv.getUint32(e+16,true),td=new TextDecoder(),hit=null;
+  for(var i=0;i<n&&p+46<=u.length;i++){if(dv.getUint32(p,true)!==0x02014b50)break;
+    var meth=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true),name=td.decode(u.subarray(p+46,p+46+nl));
+    if(name==="word/document.xml"){hit={meth:meth,cs:cs,off:off};break}p+=46+nl+xl+cl}
+  if(!hit)throw new Error("That file isn't a Word .docx document.");
+  var ds=hit.off+30+dv.getUint16(hit.off+26,true)+dv.getUint16(hit.off+28,true),data=u.subarray(ds,ds+hit.cs);
+  var done=function(bytes){var x=td.decode(bytes);return x.split(/<\/w:p>|<w:p\/>/).map(function(par){
+    var out="";par.replace(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:tab\/>|<w:br\s*\/>|<w:cr\/>/g,function(m,t){out+=t!=null?t:(m==="<w:tab/>"?"\t":"\n");return m});
+    return out.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&")}).join("\n")};
+  if(hit.meth===0)return Promise.resolve(done(data));
+  if(typeof DecompressionStream==="undefined")throw new Error("This browser can't open Word files. Save the letter as a .txt file and upload that, or paste the wording in.");
+  return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer().then(function(b){return done(new Uint8Array(b))});
+}
+window.__R.on("db",tplLoad);window.__R.on("data",tplLoad);
+window.__R.tpl=tplGet;window.__R.tplMerge=tplMerge;window.__R.tplSubj=tplSubj;window.__R.tplList=function(){openWording()};window.__R.tplSet=function(k,o){TPL[k]=Object.assign(TPL[k]||{},o);return tplSave()};
 /* ---------- send to processing ---------- */
 var PRC=null;
 function procModel(r,all){
@@ -2481,12 +2626,12 @@ function openProc(id){
   var M0=cmpModel(r);
   if(!M0.Q.length&&!(placedQuote(r))){openSheet2("Send to processing: "+r.client,'<p class="note">There are no quoted terms on this renewal yet. Enter the accepted terms first, then send them to processing.</p>','<button class="btn pri" type="button" id="prterms">Enter quotes</button>');PRC={id:r.id};return}
   var ins=r.placed||(placedQuote(r)||{}).ins||"";
-  var instr=safeGet("rr_proctpl")||"Please process this placement as per the quotation below.\n- Place cover with the accepted insurer and confirm the terms and endorsements match the table.\n- Raise the invoice and send documents to the client once confirmed.\nSpecial instructions: ";
+  var ptv={client:r.client||"",insurer:ins,"renewal date":r.date?fmtDate(r.date):""},instr=tplMerge(tplGet("proc").b,ptv);
   PRC={id:r.id};
   var det=procDetails(r);
   openSheet2("Send to processing: "+r.client,'<p class="note" style="margin:0 0 8px">Creates a draft to your processing team with the quotation table and your instructions. You check it, then send it.</p>'+
     '<label for="pr_to">Processing email</label><input class="in" id="pr_to" type="email" placeholder="processing@yourfirm.co.nz" value="'+esc(safeGet("rr_proc")||"")+'">'+
-    '<label for="pr_sub" style="margin-top:8px">Subject</label><input class="in" id="pr_sub" value="'+esc("Please process: "+r.client+(ins?" - "+ins:"")+(r.date?" - "+fmtDate(r.date):""))+'">'+
+    '<label for="pr_sub" style="margin-top:8px">Subject</label><input class="in" id="pr_sub" value="'+esc(tplSubj("proc",ptv))+'">'+
     '<label for="pr_tb" style="margin-top:8px">Quotation table</label><select class="in" id="pr_tb"><option value="placed"'+(ins?" selected":"")+'>Accepted insurer only</option><option value="all"'+(ins?"":" selected")+'>All quoted insurers side by side</option></select>'+
     '<label for="pr_ins" style="margin-top:8px">Instructions</label><textarea class="in" id="pr_ins" style="min-height:120px">'+esc(instr)+'</textarea>'+
     '<label class="note" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="pr_acc" checked> Client acceptance is on file</label>'+
@@ -2509,7 +2654,7 @@ async function doProc(){
   var to=$("pr_to").value.trim();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){m.textContent="Enter your processing team's email address.";return}
   if(!mcpOutlook||!mcp){m.textContent="Email drafts aren't available here. Use Copy email instead.";return}
-  safeSet("rr_proc",to);safeSet("rr_proctpl",$("pr_ins").value);
+  safeSet("rr_proc",to);
   var b=procBuild(r);m.textContent="Creating draft…";
   try{await mcp.callTool("Outlook","create_draft",{to:[to],subject:$("pr_sub").value,body:b.text,htmlBody:b.html,includeSignature:true})}
   catch(e){m.textContent=gmErr(e);return}
@@ -2520,7 +2665,7 @@ document.addEventListener("click",function(e){
   var t=e.target;if(!t||!t.id)return;
   if(t.id==="prgo")doProc();
   else if(t.id==="prterms"){var i=PRC&&PRC.id;closeSheet2();if(i)openTerms(i)}
-  else if(t.id==="prcopy"){var r=PRC&&byId[PRC.id];if(!r)return;var b=procBuild(r);safeSet("rr_proc",$("pr_to").value.trim());safeSet("rr_proctpl",$("pr_ins").value);
+  else if(t.id==="prcopy"){var r=PRC&&byId[PRC.id];if(!r)return;var b=procBuild(r);safeSet("rr_proc",$("pr_to").value.trim());
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(b.text):Promise.reject()).then(function(){$("prmsg").textContent="Email copied."},function(){$("prmsg").textContent="Couldn't copy. Select the text in the instructions box instead."})}
 });
 /* ---------- setup ---------- */
@@ -3368,7 +3513,14 @@ function css(){
   ".qcp{border:0;background:none;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;font-size:11.5px;padding:0 0 0 4px}.qflash{animation:qfl 1.2s ease-out}@keyframes qfl{from{background:var(--accent-soft,#dff0e0)}to{background:transparent}}"+
   ".qlay{display:flex;gap:4px;align-items:center}.qlay .in{flex:1;min-width:0}.qx{font-size:12px;color:var(--muted,#666)}"+
   "#p2body{min-width:0}.qwrap{isolation:isolate;max-width:100%}.panel.wide:has(#qroot),.panel.wide:has(#qcmp){width:min(1180px,100%)}"+
-  "@media (max-width:600px){.qg td:first-child,.qg th:first-child{min-width:118px;max-width:150px}.qg td,.qg th{min-width:128px}.qg td.sic,.qg th.sic{min-width:92px;width:92px}}";
+  ".qtips{margin:0 0 8px;font-size:13px}.qtips summary{cursor:pointer;color:var(--accent)}.qstrip{position:sticky;top:0;z-index:3;display:flex;gap:6px;overflow-x:auto;background:var(--surface);padding:6px 0;margin:0 0 6px}"+
+  ".qsb{flex:1 0 132px;max-width:240px;text-align:left;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:inherit;padding:6px 9px;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:1px;min-width:0}.qsb .qsn{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qsb .qsv{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}.qsb .qst{font-size:11px;color:var(--muted,#666)}"+
+  ".qsb.low{border-color:var(--accent)}.qsb.low .qst{color:var(--accent);font-weight:700}.qsb.off .qsv{color:var(--muted,#666)}.qsb.off .qst{color:#8a1c14}.qsr{color:var(--accent)}"+
+  ".qg td.sic .in,.qg td.qi input[data-k=v],.qg td.qi input[data-k=fee],.qtot td.qi{text-align:right;font-variant-numeric:tabular-nums}.qg tbody tr:not(.band):not(.band2):hover td{background:color-mix(in srgb,var(--accent) 5%,var(--surface))}"+
+  ".qg td.qi:has(>span[id^=qg]){text-align:right;font-variant-numeric:tabular-nums}.qno{opacity:.55}.qc:hover .qno,.qc:focus-within .qno,.qno.on{opacity:1}.qg .qtot td.qi{font-size:14px}"+
+  "@media (max-width:640px){.qsb.cur{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.qg td.qi,.qg th.qi{min-width:0;width:44%}.qsb{flex-basis:118px}}"+
+  "@media (max-width:600px){.qg td:first-child,.qg th:first-child{min-width:118px;max-width:150px}.qg td,.qg th{min-width:128px}.qg td.sic,.qg th.sic{min-width:92px;width:92px}}"+
+  "@media (max-width:640px){.qg{table-layout:fixed;width:100%}.qg td,.qg th{min-width:0;overflow-wrap:anywhere}.qg th:first-child,.qg td:first-child{width:30%;min-width:0;max-width:none}.qg th.sic,.qg td.sic{width:25%;min-width:0}.qg th.qi,.qg td.qi{width:45%;min-width:0}.qg .in,.qg select{max-width:100%;min-width:0}.qchip{flex-wrap:wrap;overflow-wrap:normal}.qg .qc input[data-k=xmn]{min-width:0}.qno{opacity:1}}";
   document.head.appendChild(s);
 }
 
@@ -3380,19 +3532,41 @@ function draw(){
   drawGrid(r);
 }
 function qcols(){return QS.qs.length}
+function qCols(){
+  var t=document.querySelector("#qroot .qg");if(!t)return;
+  [].forEach.call(t.rows,function(tr){if(tr.cells.length<3)return;for(var c=2;c<tr.cells.length;c++){tr.cells[c].classList.add("qi","qi"+(c-2))}});
+  if(QS.cur==null||QS.cur>=QS.qs.length)QS.cur=0;qCur(QS.cur);
+  var ph=document.querySelector("#sheet2 .ph"),st=$("qstrip");if(ph&&st)st.style.top=(getComputedStyle(ph).position==="sticky"?ph.offsetHeight:0)+"px";
+}
+function qCur(i){
+  QS.cur=i;var s=$("qcur");if(!s){s=document.createElement("style");s.id="qcur";document.head.appendChild(s)}
+  s.textContent="@media (max-width:640px){.qg .qi{display:none}.qg .qi"+i+"{display:table-cell}}";
+  [].forEach.call(document.querySelectorAll("#qstrip [data-qi]"),function(b){b.classList.toggle("cur",Number(b.getAttribute("data-qi"))===i)});
+}
+function qStrip(){
+  var st=$("qstrip");if(!st)return;var T=QS.T,qs=QS.qs,best=null,rows=qs.map(function(q,i){var c=calc(q,T),ok=q.st==="Quoted"&&c.any&&inCmp(q,qs,T);if(ok&&(best==null||c.tot<best))best=c.tot;return {q:q,i:i,c:c,ok:ok}});
+  var nOk=rows.filter(function(x){return x.ok}).length;
+  st.innerHTML=rows.map(function(x){var q=x.q,tag="",cl="";
+    if(q.st==="Quoted"&&x.c.any){if(!x.ok){tag="Left off comparison";cl=" off"}else if(nOk>1&&x.c.tot===best){tag="Lowest";cl=" low"}}
+    else if(q.st&&q.st!=="Quoted"){tag=q.st;cl=" off"}
+    return '<button type="button" class="qsb'+cl+(x.i===QS.cur?' cur':'')+'" data-act="cur" data-qi="'+x.i+'"><span class="qsn">'+esc(q.ins||"Insurer "+(x.i+1))+(q.rec?' <span class="qsr" title="Recommended">\u2605</span>':'')+'</span><span class="qsv">'+(x.c.any?mC(x.c.tot):"\u2014")+'</span><span class="qst">'+esc(tag||(x.c.any?"inc GST":"No premiums yet"))+'</span></button>'}).join("");
+}
 function drawGrid(r){
   var T=QS.T,qs=QS.qs,n=qs.length,cs=n+2,h="";
   var multi=T.locs.length>1;
-  h+='<div id="qroot"><p class="note" style="margin:0 0 8px">Enter what each insurer came back with, ex GST. Mark a line <b>N/O</b> if the insurer did not offer it. GST ('+Math.round(GST*100)+'%) and totals are worked out for you. Insurers who did not offer everything are left off the comparison automatically.</p><p class="note" style="margin:0 0 8px"><b>Faster:</b> copy a column of premiums in Excel and paste it into an insurer\'s first box. Enter moves down a column, Tab moves across. Type <b>N/O</b> for not offered.</p>';
+  h+='<div id="qroot"><p class="note" style="margin:0 0 6px">Enter each insurer\'s premiums ex GST. GST and totals are worked out for you.</p><details class="qtips"><summary>Tips: paste from Excel, not offered, comparison rules</summary><p class="note" style="margin:6px 0 0">Copy a column of premiums in Excel and paste it into an insurer\'s first box. Enter moves down a column, Tab moves across. Type <b>N/O</b> (or press the N/O button) when an insurer did not offer a line. An insurer who did not offer everything is left off the client comparison automatically; change that under Dates and comparison settings.</p></details>';
+  h+='<div class="qstrip" id="qstrip"></div>';
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"><button class="btn sm" type="button" data-act="addq">Add insurer</button><button class="btn sm" type="button" data-act="lay">'+(QS.lay?'Done editing layout':'Edit layout')+'</button><button class="btn sm" type="button" data-act="lib">Endorsement library</button></div>';
   h+='<div class="qwrap"><table class="qg"><thead><tr><th>'+esc(r.client||"")+'</th><th class="sic">Sum insured</th>'+qs.map(function(q,i){return '<th><input class="in" data-k="ins" data-q="'+i+'" list="inslist" placeholder="Insurer" value="'+esc(q.ins||"")+'"></th>'}).join("")+'</tr></thead><tbody>';
-  var row=function(label,f,o){o=o||{};h+='<tr'+(o.cls?' class="'+o.cls+'"':'')+'><td>'+label+'</td><td class="sic"></td>'+qs.map(function(q,i){return '<td>'+f(q,i)+'</td>'}).join("")+'</tr>'};
-  row("Status",function(q,i){return '<select class="in" data-k="st" data-q="'+i+'">'+QST.map(function(s){return '<option'+(s===q.st?" selected":"")+'>'+s+'</option>'}).join("")+'</select>'});
-  row("Reply received",function(q,i){return '<input class="in" type="date" data-k="reply" data-q="'+i+'" value="'+esc(q.reply||"")+'">'});
-  row("Quote valid until",function(q,i){return '<input class="in" type="date" data-k="exp" data-q="'+i+'" value="'+esc(q.exp||"")+'">'});
+  var row=function(label,f,o){o=o||{};h+='<tr'+(o.cls?' class="'+o.cls+'"':'')+(o.cls==="qmore"&&!QS.more?' hidden':'')+'><td>'+label+'</td><td class="sic"></td>'+qs.map(function(q,i){return '<td>'+f(q,i)+'</td>'}).join("")+'</tr>'};
+  row("Status",function(q,i){return '<select class="in" data-k="st" data-q="'+i+'">'+QST.map(function(s){return '<option'+(s===q.st?" selected":"")+'>'+s+'</option>'}).join("")+'</select><div class="qwarn" id="qw'+i+'"></div>'});
   row("Recommended",function(q,i){return '<label style="display:flex;gap:5px;align-items:center;margin:0"><input type="radio" name="qrec" data-k="rec" data-q="'+i+'"'+(q.rec?' checked':'')+'> Recommended</label>'});
-  row("Show in comparison",function(q,i){var f=q.qv.inc;return '<select class="in" data-k="inc" data-q="'+i+'"><option value="a"'+(f==null?' selected':'')+'>Automatic</option><option value="y"'+(f===true?' selected':'')+'>Always</option><option value="n"'+(f===false?' selected':'')+'>Never</option></select><div class="qwarn" id="qw'+i+'"></div>'});
-  row("Outcome wording for the email",function(q,i){return '<input class="in" data-k="note" data-q="'+i+'" placeholder="'+esc(outcome(Object.assign({},q,{qv:Object.assign({},q.qv,{note:""})}),qs,T))+'" value="'+esc(q.qv.note||"")+'">'});
+  h+='<tr class="band2 qmoreb"><td colspan="'+cs+'"><button type="button" class="qcp" style="padding:0;font-size:12px" data-act="more" aria-expanded="'+(QS.more?'true':'false')+'">'+(QS.more?'Hide':'Show')+' dates and comparison settings</button></td></tr>';
+  var mo={cls:"qmore"};
+  row("Reply received",function(q,i){return '<input class="in" type="date" data-k="reply" data-q="'+i+'" value="'+esc(q.reply||"")+'">'},mo);
+  row("Quote valid until",function(q,i){return '<input class="in" type="date" data-k="exp" data-q="'+i+'" value="'+esc(q.exp||"")+'">'},mo);
+  row("Show in comparison",function(q,i){var f=q.qv.inc;return '<select class="in" data-k="inc" data-q="'+i+'"><option value="a"'+(f==null?' selected':'')+'>Automatic</option><option value="y"'+(f===true?' selected':'')+'>Always</option><option value="n"'+(f===false?' selected':'')+'>Never</option></select>'},mo);
+  row("Outcome wording for the email",function(q,i){return '<input class="in" data-k="note" data-q="'+i+'" placeholder="'+esc(outcome(Object.assign({},q,{qv:Object.assign({},q.qv,{note:""})}),qs,T))+'" value="'+esc(q.qv.note||"")+'">'},mo);
   T.locs.forEach(function(loc,li){
     if(multi||QS.lay)h+='<tr class="band"><td colspan="'+cs+'">'+(QS.lay?'<div class="qlay"><span>Location '+esc(loc.id)+'</span><input class="in" data-k="locn" data-loc="'+li+'" placeholder="Address or name" value="'+esc(loc.name||"")+'">'+(multi?'<button class="btn sm bad" type="button" data-act="delloc" data-loc="'+li+'">Remove location</button>':'')+'</div>':'Location '+esc(loc.id)+(loc.name?': '+esc(loc.name):''))+'</td></tr>';
     loc.classes.forEach(function(cl,ci){
@@ -3430,7 +3604,7 @@ function drawGrid(r){
   row("",function(q,i){return '<button class="btn sm bad" type="button" data-act="delq" data-q="'+i+'">Remove insurer</button>'});
   h+='</tbody></table></div><p class="note" id="qmsg" role="status">'+esc(QS.msg||"")+'</p></div>';
   R.openSheet2("Quotes: "+(r.client||""),h,'<button class="btn pri" type="button" data-qsave="1">Save</button><button class="btn" type="button" data-qsave="cmp">Save and compare</button>');
-  live();
+  qCols();live();
 }
 function endCell(q,i,loc,li,cl,ci){
   var key=loc.id+"."+cl.id,sel=q.qv.e[key]||[],used={};sel.forEach(function(e){used[e.id]=1});
@@ -3452,6 +3626,7 @@ function live(){
     })})});
   });
   T.locs.forEach(function(loc,li){var e=$("qbase"+li);if(e){var b=eqBase(loc);e.textContent=b!=null?mD(b):"set sum insured"}});
+  qStrip();
 }
 
 /* ---------- events ---------- */
@@ -3463,7 +3638,7 @@ document.addEventListener("input",function(e){
   if(!inRoot(e))return;var el=e.target,k=el.getAttribute("data-k");if(!k)return;var v=el.value,q,loc,cl;
   if(QS.view==="cmp"){mailInput(el);return}
   if(QS.view==="lib"){libInput(el);return}
-  if(k==="ins"){dq(el).ins=v;return}
+  if(k==="ins"){dq(el).ins=v;qStrip();return}
   if(k==="reply"||k==="exp"||k==="cond"){dq(el)[k]=v;return}
   if(k==="note"){dq(el).qv.note=v;return}
   if(k==="fee"){dq(el).qv.fee=v===""?"":Number(v);live();return}
@@ -3484,7 +3659,7 @@ document.addEventListener("change",function(e){
   if(QS.view==="cmp"){mailChange(el);return}
   if(QS.view==="lib"){libChange(el);return}
   if(k==="st"){dq(el).st=v;live();return}
-  if(k==="rec"){QS.qs.forEach(function(q){q.rec=false});dq(el).rec=true;return}
+  if(k==="rec"){QS.qs.forEach(function(q){q.rec=false});dq(el).rec=true;qStrip();return}
   if(k==="inc"){dq(el).qv.inc=v==="y"?true:v==="n"?false:undefined;if(v==="a")delete dq(el).qv.inc;live();return}
   if(k==="lnk"){dcl(el).lines[Number(el.getAttribute("data-ln"))].kind=v;live();return}
   if(k==="clek"){dcl(el).ek=v;draw();return}
@@ -3506,7 +3681,9 @@ document.addEventListener("click",function(e){
   if(QS.view==="cmp")return cmpClick(a,el);
   if(QS.view==="lib")return libClick(a,el);
   var q,loc,cl;
-  if(a==="addq"){QS.qs.push(newQ());draw()}
+  if(a==="cur"){var qi=Number(el.getAttribute("data-qi"));qCur(qi);if(!window.matchMedia("(max-width:640px)").matches){var th=document.querySelector("#qroot .qg thead .qi"+qi+" input");if(th){th.scrollIntoView({block:"nearest",inline:"center"})}}return}
+  if(a==="more"){QS.more=!QS.more;[].forEach.call(document.querySelectorAll("#qroot .qmore"),function(tr){tr.hidden=!QS.more});el.textContent=(QS.more?"Hide":"Show")+" dates and comparison settings";el.setAttribute("aria-expanded",QS.more?"true":"false");return}
+  if(a==="addq"){QS.qs.push(newQ());QS.cur=QS.qs.length-1;draw()}
   else if(a==="delq"){QS.qs.splice(Number(el.getAttribute("data-q")),1);if(!QS.qs.length)QS.qs.push(newQ());draw()}
   else if(a==="lay"){QS.lay=!QS.lay;draw()}
   else if(a==="lib"){QS.ret=null;QS.view="lib";draw()}
@@ -3715,16 +3892,11 @@ function copyNode(el,okMsg){
 
 /* ---------- email narrative ---------- */
 function mailDefaults(r){
-  var T=r.qt,qs=r.quotes||[],sh=shownQs(r),rec=sh.filter(function(q){return q.rec})[0]||qs.filter(function(q){return q.rec})[0];
-  return {
-    intro:"Thank you for your patience. I have been to market for your insurance and have set out the results below so you can see how the options compare.",
-    chartnote:"The graph shows the total cost for each insurer that offered terms for all of your cover. Insurers who could not offer everything have been removed, so you are comparing like with like.",
-    scope:"Cover in this review: "+(r.lines||"your insurance programme")+".\nYour goals: ",
-    rec:rec?"Based on cost and coverage we would recommend the "+rec.ins+" option for "+(r.client||"you"):"Based on cost and coverage we would recommend: ",
-    endnote:"The endorsements applied by each insurer are listed below.",
-    attach:"The insurer quotations are attached for your reference.",
-    next:"To go ahead, reply to confirm which insurer you would like to place your cover with. If you would like to talk it through first, give me a call and we will go over it together."
-  };
+  var qs=r.quotes||[],sh=shownQs(r),rec=sh.filter(function(q){return q.rec})[0]||qs.filter(function(q){return q.rec})[0];
+  var t=R.tpl("quote").sec,v={client:r.client||"you",covers:r.lines||"your insurance programme","recommended insurer":rec?rec.ins:""},o={};
+  Object.keys(t).forEach(function(k){o[k]=R.tplMerge(t[k],v)});
+  if(!rec&&/\{recommended insurer\}/i.test(t.rec))o.rec="Based on cost and coverage we would recommend: ";
+  return o;
 }
 function mailVal(k){var d=mailDefaults(curR());return QS.mail&&QS.mail[k]!=null?QS.mail[k]:d[k]}
 function marketLines(r){var qs=r.quotes||[],T=r.qt;return qs.filter(function(q){return q.ins}).map(function(q){return {n:q.ins,o:outcome(q,qs,T)}})}
@@ -3762,7 +3934,7 @@ function drawCmp(r){
     (removed.length?'<p class="note">Left off the comparison: '+removed.map(function(q){return esc(q.ins)+' ('+esc(outcome(q,all,r.qt).toLowerCase())+')'}).join(", ")+'.</p>':'')+
     '<div style="font-weight:700;margin:14px 0 2px;color:var(--accent)">Email wording</div><p class="note" style="margin:0">Markets approached is built from your insurer list: '+mk.map(function(m){return esc(m.n)+' ('+esc(m.o.toLowerCase())+')'}).join("; ")+'.</p>'+
     ta("intro","Opening")+ta("chartnote","Note above the graph")+ta("scope","Scope and goals",70)+ta("rec","Recommendation",70)+ta("endnote","Line above the endorsement lists")+ta("attach","Attachments line")+'<p class="note" style="margin:2px 0 0">Drafts can not carry your stored files, so attach the insurer PDFs yourself before you send.</p>'+ta("next","Next steps")+
-    '<p class="note" id="cmpmsg" role="status"></p></div>';
+    '<p class="note" style="margin:6px 0 0">This wording is for this client only. To change the standard letter for every client, use <button type="button" class="qcp" data-qf="1" data-act="tpl" style="font-size:inherit;padding:0">Email templates</button>.</p><p class="note" id="cmpmsg" role="status"></p></div>';
   R.openSheet2("Compare quotes: "+(r.client||""),h,'<button class="btn pri" type="button" data-qf="1" data-act="mail">Create client email draft</button><button class="btn" type="button" data-qf="1" data-act="copyt">Copy table</button><button class="btn" type="button" data-qf="1" data-act="copya">Copy table and graph</button><button class="btn" type="button" data-qf="1" data-act="copyg">Copy graph</button><button class="btn" type="button" data-qf="1" data-act="saveg">Save graph</button><button class="btn" type="button" data-qf="1" data-act="back">Edit quotes</button><span style="display:flex;gap:6px;align-items:center"><select class="in" id="cmpwho" style="width:auto" aria-label="Accepted insurer">'+Qs.map(function(q){return '<option'+(q.rec?' selected':'')+'>'+esc(q.ins)+'</option>'}).join('')+'</select><button class="btn" type="button" data-qf="1" data-act="accept">Client accepted</button></span>');
   svgToPng(ch.svg,ch.w,ch.h,2).then(function(b){QS.chart.b=b;return blobUrl(b)}).then(function(u){var el=$("cmpimgs");if(el)el.innerHTML='<img alt="Annual cost by insurer" src="'+u+'" style="max-width:100%;height:auto;display:block">'}).catch(function(){var el=$("cmpimgs");if(el)el.innerHTML='<p class="note">The graph could not be drawn in this view. The table still copies.</p>'});
 }
@@ -3776,7 +3948,7 @@ async function doMail(){
   var Qs=shownQs(r),b=buildMail(r,Qs),atts=[];
   try{if(QS.chart&&QS.chart.b)atts.push({content:(await blobUrl(QS.chart.b)).split(",")[1],filename:"cost-comparison.png",mimeType:"image/png"})}catch(e){}
   m.textContent="Creating draft…";
-  try{await mcp.callTool("Outlook","create_draft",{to:[r.email],subject:"Your insurance quotes - "+r.client,body:b.text,htmlBody:b.html,includeSignature:true,attachments:atts})}
+  try{await mcp.callTool("Outlook","create_draft",{to:[r.email],subject:R.tplSubj("quote",{client:r.client||""}),body:b.text,htmlBody:b.html,includeSignature:true,attachments:atts})}
   catch(e){m.textContent=gmErr(e);return}
   m.textContent="Draft created with the table in the email and the graph attached. Check it and send it.";
   var cur=getR(r.id);
@@ -3788,6 +3960,7 @@ function doAccept(){
 }
 function cmpClick(a,el){
   var b=QS.chart&&QS.chart.b;
+  if(a==="tpl"){R.closeSheet2();R.tplList();return}
   if(a==="back"){QS.view="grid";draw()}
   else if(a==="mail")doMail();
   else if(a==="accept")doAccept();
