@@ -5,6 +5,10 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f5c4d">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
 <title>Meeting Guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@500;600;700&display=swap">
 <style>
@@ -1445,6 +1449,7 @@ async function hzHeight(a,key){
 }
 function hzLdsQ(lds,layer,a,extra){return hzJ('https://data.linz.govt.nz/services/query/v1/vector.json?key='+encodeURIComponent(lds)+'&layer='+layer+'&x='+a.x+'&y='+a.y+'&geometry=true&with_field_names=true'+(extra||''));}
 function hzFeats(j,layer){var l=j&&j.vectorQuery&&j.vectorQuery.layers&&j.vectorQuery.layers[String(layer)];return (l&&l.features)||[];}
+async function hzTAFree(a){var j=await hzJ('https://services2.arcgis.com/vKb0s8tBIA3bdocZ/arcgis/rest/services/Territorial_Authority_2025/FeatureServer/0/query?f=json&geometry='+a.x+','+a.y+'&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=TA2025_V1_00_NAME_ASCII&returnGeometry=false',15000);var f=(j.features||[])[0];return f&&f.attributes&&f.attributes.TA2025_V1_00_NAME_ASCII||'';}
 async function hzTA(a,lds){var j=await hzLdsQ(lds,113764,a,'&max_results=1&radius=0');var f=hzFeats(j,113764)[0];return f&&f.properties&&f.properties.territorial_authority||'';}
 function hzRingArea(r,k){var s=0;for(var i=0,j=r.length-1;i<r.length;j=i++)s+=(r[j][0]*k[0])*(r[i][1]*k[1])-(r[i][0]*k[0])*(r[j][1]*k[1]);return Math.abs(s/2);}
 /* parcel and building footprint for an address found through the NZ-wide search */
@@ -1463,6 +1468,7 @@ async function hzRun(){
   HZ.running=true;a.hz={busy:true};smRefresh();
   var rows=[],src=[],ta=a.ta||'',safe=function(p,l){return p.catch(function(){return {l:l,v:'Couldn\u2019t check just now',s:'err'};});};
   if(!ta&&lds){try{ta=await hzTA(a,lds);}catch(e){}}
+  if(!ta){try{ta=await hzTAFree(a);}catch(e){}}
   if(a.live&&lds&&!a.parea){try{await hzSite(a,lds);}catch(e){}}
   var reg=HZR[ta],jobs=[];
   if(reg)reg.chk.forEach(function(c){jobs.push(safe(hzCheck(c,a),c.l));});
@@ -1473,7 +1479,7 @@ async function hzRun(){
   if(my!==HZ.seq||!state.auto||state.auto.addr!==addr)return;
   if(ta)rows.push({l:'District council',v:ta,s:'info'});
   if(reg)src.push(reg.who);
-  else rows.push({l:'Council hazard maps',v:!lds?'Add a LINZ Data Service key so Broker Desk can find the council and check its maps':ta?'Not covered in Broker Desk yet. Check the council\u2019s own hazard map.':'Couldn\u2019t find the council for this address',s:'nc'});
+  else rows.push({l:'Council hazard maps',v:ta?'Not covered in Broker Desk yet. Check the council\u2019s own hazard map.':'Couldn\u2019t find the council for this address',s:'nc'});
   rows=rows.concat(res);src.push('GNS Science NZ Active Faults Database');if(bm)src.push('LINZ elevation');
   a=state.auto;a.ta=ta;a.hz={rows:rows,src:src,ta:ta,at:new Date().toISOString().slice(0,10)};
   a.flood=rows.filter(function(r){return r.s!=='err'&&r.s!=='nc';}).map(function(r){return [r.l,r.v];});
@@ -2954,5 +2960,6 @@ if(true){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 </script>
+<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost")&&!/claude/.test(location.hostname)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
 </body>
 </html>

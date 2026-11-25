@@ -5,6 +5,13 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Broker Desk</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f5c4d">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Broker Desk">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: a ledger. Chase list and workload on top, then a stage board or table; edits open in a side sheet. */
@@ -256,7 +263,7 @@ table.t{border-collapse:collapse;width:100%;min-width:900px}
       <div class="full"><label for="f_placed">Placed with (insurer)</label><input class="in" id="f_placed" list="inslist" placeholder="Set when the client accepts"></div>
       <div class="full"><label for="f_next">Next action</label><input class="in" id="f_next" placeholder="e.g. Chase signed declaration, call Sam Thursday"></div>
       <div class="full"><p class="note" id="pdates" style="margin:0 0 8px"></p><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm pri" type="button" id="psend" hidden>Send form to client</button><button class="btn sm" type="button" id="pconf" hidden>Confirm answers with client</button><button class="btn sm" type="button" id="puw" hidden>Send to underwriters</button></div><p class="note" id="psendnote"></p></div>
-      <div class="full"><button class="btn sm" type="button" id="cal">Add follow-up to Outlook calendar</button><p class="note" id="calmsg"></p></div>
+      <div class="full"><button class="btn sm" type="button" id="cal">Add follow-up to my calendar</button><p class="note" id="calmsg"></p></div>
       <div class="full"><label for="f_logadd">Add an update to the history</label><input class="in" id="f_logadd" placeholder="e.g. Spoke to Sam, sending declaration Friday"></div>
 
       <h4>Cover</h4>
@@ -329,7 +336,7 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common"};</script>
+<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.0 (25 Nov 2026)"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
 /*! @azure/msal-common v14.16.0 2024-12-12 */
@@ -922,7 +929,7 @@ async function startMs(interactive){
     finish();
   }
   if(lsGet("rr_rootmode")||rootRef.get()){await enter();return}
-  gate(titleHtml()+'<p style="margin:0 0 6px">Signed in as <b>'+esc(ME.name||ME.email)+'</b>.</p><p style="color:var(--muted);margin:0 0 14px">Where should Broker Desk keep your work?</p><button class="btn pri" id="sg_own" type="button" style="width:100%;padding:11px">In my own OneDrive</button><p class="note" style="margin:4px 0 12px">Creates a folder called BrokerDesk. You can share that folder with other brokers later.</p><div style="border-top:1px solid var(--line);padding-top:12px"><label for="sg_link">Or join a register someone has shared with you</label><input class="in" id="sg_link" placeholder="Paste the OneDrive or SharePoint folder link"><button class="btn" id="sg_join" type="button" style="margin-top:8px">Join shared register</button></div><p class="note" id="sg_msg" role="alert"></p>',function(c){
+  gate(titleHtml()+'<p style="margin:0 0 6px">Signed in as <b>'+esc(ME.name||ME.email)+'</b>.</p><p style="color:var(--muted);margin:0 0 14px">Where should Broker Desk keep your work?</p><button class="btn pri" id="sg_own" type="button" style="width:100%;padding:11px">In my own OneDrive</button><p class="note" style="margin:4px 0 12px">Creates a folder called BrokerDesk. You can share that folder with other brokers later.</p><div style="border-top:1px solid var(--line);padding-top:12px"><label for="sg_link">Or join a database someone has shared with you</label><input class="in" id="sg_link" placeholder="Paste the OneDrive or SharePoint folder link"><button class="btn" id="sg_join" type="button" style="margin-top:8px">Join shared database</button></div><p class="note" id="sg_msg" role="alert"></p>',function(c){
     c.querySelector("#sg_own").onclick=function(){lsSet("rr_rootmode","own");enter()};
     c.querySelector("#sg_join").onclick=async function(){
       var link=c.querySelector("#sg_link").value.trim(),m=c.querySelector("#sg_msg");if(!link){m.textContent="Paste the folder link first.";return}
@@ -940,7 +947,7 @@ function finish(){
   var bar=el('<div id="shimbar" style="text-align:center;font-size:12px;color:var(--muted);margin:6px 0 40px"></div>');
   bar.innerHTML=(PROV.name==="demo"?'<b>Demo with made-up clients.</b> Nothing here is saved or sent. ':PROV.name==="device"?'<span id="shimstate"></span> ':'Signed in as '+esc(ME.name||ME.email)+'. ')+'<button type="button" id="shimout" style="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline">'+(PROV.name==="demo"?"Exit demo":PROV.name==="device"?"Back up now":"Sign out")+'</button>';
   document.body.appendChild(bar);
-  var sb=document.createElement("button");sb.type="button";sb.id="shimset";sb.textContent="Settings";sb.style.cssText="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;margin-right:12px";bar.insertBefore(sb,document.getElementById("shimout"));sb.onclick=openSettings;
+  var sb=document.createElement("button");sb.type="button";sb.id="shimset";sb.textContent="Settings";sb.style.cssText="background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;margin-right:12px";bar.insertBefore(sb,document.getElementById("shimout"));sb.onclick=openSettings;var vs=document.createElement("span");vs.id="shimver";vs.style.cssText="display:block;margin-top:4px;font-size:11.5px;opacity:.75";vs.textContent="Broker Desk "+(RC.version||"");bar.appendChild(vs);
   drawBar();(async function(){if(PROV.name==="device")await seedDemo(false);await loadProfile()})();
   document.getElementById("shimout").onclick=function(){if(PROV.name==="demo")exitDemo();else if(PROV.name==="device")backupNow();else PROV.signOut()};
   /* the page's own Back up button gives the full backup on this device */
@@ -1005,7 +1012,7 @@ function openSettings(){
   var f=function(id,l,v,ph,ty){return '<label for="'+id+'" style="margin-top:8px">'+l+'</label><input class="in" id="'+id+'" type="'+(ty||"text")+'" value="'+esc(v||"")+'" placeholder="'+esc(ph||"")+'">'};
   gate('<h2 style="margin:0 0 4px;font-size:18px">Settings</h2><p class="note" style="margin:0 0 6px">Your details appear in the emails you send to clients.</p>'
     +f("st_name","Your name",p.name)+f("st_role","Role",p.role)+f("st_mob","Mobile",p.mobile||p.phone,"","tel")+f("st_email","Email",p.email,"","email")
-    +'<h3 style="margin:16px 0 0;font-size:15px">Firm</h3><p class="note" style="margin:0 0 4px">Shared with everyone using the same register.</p>'
+    +'<h3 style="margin:16px 0 0;font-size:15px">Firm</h3><p class="note" style="margin:0 0 4px">Shared with everyone using the same database.</p>'
     +f("st_firm","Firm name",p.firm)+f("st_fsp","FSP number",p.fsp)+f("st_portal","Client form web address",p.portal===defPortal()?"":p.portal,defPortal()||"https://")+'<p class="note" style="margin:2px 0 0">Leave empty to use the client form that came with Broker Desk.</p>'
     +'<label for="st_acc" style="margin-top:8px">Brand colour</label><input id="st_acc" type="color" value="'+(/^#[0-9a-f]{6}$/i.test(p.accent||"")?p.accent:"#0f5c4d")+'" style="width:60px;height:34px"> <button class="btn sm" id="st_accx" type="button">Use standard colour</button>'
     +(PROV.name==="ms"?'<h3 style="margin:16px 0 0;font-size:15px">Invite a broker</h3><p class="note" style="margin:0 0 6px">1. In OneDrive or SharePoint, share the BrokerDesk folder with them and allow editing. 2. Send them this link. They open it, sign in, and they are in.</p><button class="btn sm" id="st_inv" type="button">Copy invite link</button><p class="note" id="st_invmsg" role="status" style="overflow-wrap:anywhere"></p><h3 style="margin:16px 0 0;font-size:15px">Email drafts</h3><label for="st_msmail" style="margin-top:6px">Where drafts are created</label><select class="in" id="st_msmail"><option value="">In my Outlook (Microsoft 365)</option><option value="device">On this device, for Gmail or another mail app</option></select>':'')+(PROV.name==="device"?'<h3 style="margin:16px 0 0;font-size:15px">Email drafts</h3><label for="st_mail" style="margin-top:6px">How drafts are created</label><select class="in" id="st_mail"><option value="auto">Automatic (draft file on a computer, mail app on a phone)</option><option value="eml">Draft file that opens in Outlook or Apple Mail, with formatting and attachments</option><option value="mailto">Open my mail app with plain text</option></select>'
@@ -1192,7 +1199,7 @@ function withLog(prev,d,extra){
 }
 function write(p){return p.catch(function(e){
   if(e&&e.code==="invalid_argument"){canWrite=false;$("notice").hidden=false;toast("Saving isn't allowed for your access level.")}
-  else if(e&&e.code==="quota_exceeded")toast("The register is full. Delete some old rows first.");
+  else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete some old clients first.");
   else toast("Couldn't save. Try again in a moment.");
   throw e;
 })}
@@ -1445,7 +1452,7 @@ async function uploadFiles(files){
 function openSheet2(title,body,foot){$("p2title").textContent=title;$("p2body").innerHTML=body;$("p2foot").innerHTML=foot;$("sheet2").hidden=false}
 function closeSheet2(){$("sheet2").hidden=true}
 function openPaste(){
-  openSheet2("Paste from Meeting Guide",'<p class="note" style="margin:0 0 8px">In the Meeting Guide, open Send to Broker Desk and tap <b>Copy for Broker Desk</b>. Paste it here. If this client and renewal date are already in the register, the row is updated instead of duplicated.</p><textarea class="in" id="pastebox" style="min-height:200px;font-family:var(--mono);font-size:12px" aria-label="Pasted Meeting Guide data"></textarea><p class="note" id="pastemsg"></p>','<button class="btn pri" type="button" id="pastego">Add to register</button>');
+  openSheet2("Paste from Meeting Guide",'<p class="note" style="margin:0 0 8px">In the Meeting Guide, open Send to Broker Desk and tap <b>Copy for Broker Desk</b>. Paste it here. If this client and renewal date are already in Broker Desk, the record is updated instead of duplicated.</p><textarea class="in" id="pastebox" style="min-height:200px;font-family:var(--mono);font-size:12px" aria-label="Pasted Meeting Guide data"></textarea><p class="note" id="pastemsg"></p>','<button class="btn pri" type="button" id="pastego">Add to Broker Desk</button>');
   setTimeout(function(){$("pastebox").focus()},30);
 }
 async function doPaste(){
@@ -1483,7 +1490,7 @@ function openLink(){
   openSheet2("Client link",'<p class="note" style="margin:0 0 8px">Copy this into an email to the client. The form works on a phone or computer and needs no login.</p><textarea class="in" id="linkbox" style="min-height:300px" aria-label="Email to client">'+esc(msg)+'</textarea>','<button class="btn pri" type="button" id="linkcopy">Copy email</button>');
 }
 function openPortalImport(){
-  openSheet2("Import client response",'<div id="respbox" style="margin:0 0 12px"></div><p class="note" style="margin:0 0 8px">Or paste the email the client sent, including the block between BEGIN RENEWAL DATA and END RENEWAL DATA. If this client and renewal date are already in the register, the row is updated.</p><p style="margin:0 0 8px"><label class="note" for="pimpfile">Or choose the attachment from the email (.txt)</label><br><input type="file" id="pimpfile" accept=".txt,.json,.eml,text/plain"></p><textarea class="in" id="pimpbox" style="min-height:220px;font-family:var(--mono);font-size:12px" aria-label="Pasted client response"></textarea><p class="note" id="pimpmsg"></p>','<button class="btn pri" type="button" id="pimpgo">Import</button>');
+  openSheet2("Import client response",'<div id="respbox" style="margin:0 0 12px"></div><p class="note" style="margin:0 0 8px">Or paste the email the client sent, including the block between BEGIN RENEWAL DATA and END RENEWAL DATA. If this client and renewal date are already in Broker Desk, the record is updated.</p><p style="margin:0 0 8px"><label class="note" for="pimpfile">Or choose the attachment from the email (.txt)</label><br><input type="file" id="pimpfile" accept=".txt,.json,.eml,text/plain"></p><textarea class="in" id="pimpbox" style="min-height:220px;font-family:var(--mono);font-size:12px" aria-label="Pasted client response"></textarea><p class="note" id="pimpmsg"></p>','<button class="btn pri" type="button" id="pimpgo">Import</button>');
   loadResp();
 }
 var RESP_SHEET="",RESP_ROWS=[],RESP_PENDING="";
@@ -1595,7 +1602,7 @@ async function openSend(id){
   var subj="Your insurance renewal"+(r.date?" - "+fmtDate(nextYearDate(r.date)):"")+" - "+r.client;
   var body=HASH_LINKS?"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\nOpen your form here (it already has your details filled in, so you only need to check and update them):\n"+plink+"\n\nWhen you reach the end, follow the last step to send your answers to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+SIGN:"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\n1. Open the form: "+PORTAL_URL+"\n2. On the first screen, open \"Did your broker send you a pre-fill code?\" and paste in the code below. It fills in what we held at your last review so you only need to check and update it.\n3. At the end it will ask you to copy your answers into an email back to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+code+"\n\n"+SIGN;
   sendCtx={r:r,subj:subj,body:body};
-  openSheet2("Send renewal information to client",'<p class="note" style="margin:0 0 8px">'+(r.portal?"Includes the answers last collected from this client.":"This client has not used the form yet, so the code carries the details held in the register.")+" "+(HASH_LINKS?"The link opens the form with these details already filled in.":"They paste the code into the form's first screen.")+"</p><div class=\"full\"><label for=\"sendto\">To</label><input class=\"in\" id=\"sendto\" type=\"email\" value=\""+esc(r.email||"")+"\"></div><div class=\"full\"><label for=\"sendsub\">Subject</label><input class=\"in\" id=\"sendsub\" value=\""+esc(subj)+"\"></div><div class=\"full\"><label for=\"sendbody\">Email</label><textarea class=\"in\" id=\"sendbody\" style=\"min-height:260px;font-family:var(--mono);font-size:12px\"></textarea></div><p class=\"note\" id=\"sendmsg\"></p>",(mcpOutlook?'<button class="btn pri" type="button" id="senddraft">Create email draft</button>':'')+'<button class="btn'+(mcpOutlook?'':' pri')+'" type="button" id="sendcopy">Copy email</button>');
+  openSheet2("Send renewal information to client",'<p class="note" style="margin:0 0 8px">'+(r.portal?"Includes the answers last collected from this client.":"This client has not used the form yet, so the code carries the details held in Broker Desk.")+" "+(HASH_LINKS?"The link opens the form with these details already filled in.":"They paste the code into the form's first screen.")+"</p><div class=\"full\"><label for=\"sendto\">To</label><input class=\"in\" id=\"sendto\" type=\"email\" value=\""+esc(r.email||"")+"\"></div><div class=\"full\"><label for=\"sendsub\">Subject</label><input class=\"in\" id=\"sendsub\" value=\""+esc(subj)+"\"></div><div class=\"full\"><label for=\"sendbody\">Email</label><textarea class=\"in\" id=\"sendbody\" style=\"min-height:260px;font-family:var(--mono);font-size:12px\"></textarea></div><p class=\"note\" id=\"sendmsg\"></p>",(mcpOutlook?'<button class="btn pri" type="button" id="senddraft">Create email draft</button>':'')+'<button class="btn'+(mcpOutlook?'':' pri')+'" type="button" id="sendcopy">Copy email</button>');
   $("sendbody").value=body;
 }
 function markSent(how){
@@ -2174,7 +2181,7 @@ function repHTML(R){
   h+='<h3 style="font:700 14px Arial,sans-serif;margin:12px 0 6px">By underwriter</h3>';
   if(us.length){h+='<table style="border-collapse:collapse;width:100%"><thead><tr>'+["Underwriter","Sent","Quoted","Declined","Referred","Placed","Avg reply"].map(function(t,i){return '<th style="'+TH+(i?';text-align:right':'')+'">'+t+'</th>'}).join("")+'</tr></thead><tbody>'+us.map(function(k){var U=R.uw[k];return '<tr><td style="'+TD+'">'+xmlEsc(k)+'</td>'+[U.req,U.quoted,U.declined,U.referred,U.placed,d(avgD(U.days))].map(function(v){return '<td style="'+TN+'">'+v+'</td>'}).join("")+'</tr>'}).join("")+'</tbody></table>'}
   else h+='<p style="font:13px Arial,sans-serif;color:#555">No underwriter activity this month.</p>';
-  return h+'<p style="font:11px Arial,sans-serif;color:#777;margin:8px 0 0">Counts use the dates recorded in the Register for each step.</p></div>';
+  return h+'<p style="font:11px Arial,sans-serif;color:#777;margin:8px 0 0">Counts use the dates recorded in Broker Desk for each step.</p></div>';
 }
 function monthName(ym){var p=ym.split("-");return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString("en-NZ",{month:"long",year:"numeric"})}
 function openReport(){
@@ -2551,7 +2558,7 @@ render();
     refetch=function(){if(coll&&coll.get)coll.get().then(take).catch(function(){})};
     function why(e){return e&&(e.code||e.message)?String(e.code||e.message):"unknown"}
     DIAG.sync="subscribing";diag();setInterval(diag,1000);
-    coll.onSnapshot(function(s){snapGot=true;DIAG.sync="live";take(s)},function(e){DIAG.sync="error";DIAG.err=why(e);diag();loaded=true;$("notice").hidden=false;$("notice").textContent="Couldn't load the register list ("+why(e)+"). Close and reopen this page, or open it from its link in your browser.";render()});
+    coll.onSnapshot(function(s){snapGot=true;DIAG.sync="live";take(s)},function(e){DIAG.sync="error";DIAG.err=why(e);diag();loaded=true;$("notice").hidden=false;$("notice").textContent="Couldn't load your clients ("+why(e)+"). Close and reopen this page, or open it from its link in your browser.";render()});
     function viaServer(){
       if(!mcp||!mcp.server)return;
       mcp.server("artifacts_data").then(function(h){return h.query({collection:"renewals"})}).then(function(r){
@@ -2561,7 +2568,7 @@ render();
       }).catch(function(e){DIAG.err="data server: "+why(e);diag()});
     }
     setTimeout(function(){if(!snapGot)viaServer()},2000);
-    setTimeout(function(){if(!snapGot&&coll.get){DIAG.sync="fetching";diag();coll.get().then(function(x){DIAG.sync="fetched once";take(x)},function(e){DIAG.sync="failed";DIAG.err=why(e);diag();$("notice").hidden=false;$("notice").textContent="Couldn't load the register list ("+why(e)+"). Close and reopen this page, or open it from its link in your browser."})}},2500);
+    setTimeout(function(){if(!snapGot&&coll.get){DIAG.sync="fetching";diag();coll.get().then(function(x){DIAG.sync="fetched once";take(x)},function(e){DIAG.sync="failed";DIAG.err=why(e);diag();$("notice").hidden=false;$("notice").textContent="Couldn't load your clients ("+why(e)+"). Close and reopen this page, or open it from its link in your browser."})}},2500);
     var mine=safeGet("rr_owner");if(mine){$("fowner").value=mine}
   }).catch(function(e){loaded=true;DIAG.sync="stopped";DIAG.err=String(e&&(e.code||e.message)||e);diag();render()});
 })();
@@ -4252,7 +4259,9 @@ X.help=function(){
    +(X.team()?'<li>You share one database with the other brokers. Today and Calendar show your own clients first. Tap <b>Everyone</b> to see the whole firm, and Find or Clients always search everyone.</li>':'')
    +(dev?'<li>Your work is kept on this device. Use <b>Back up now</b> at the bottom of the page each week, and keep the file somewhere safe. To move to another computer, restore that file there.</li>':'<li>Your work is kept in the firm\u2019s shared BrokerDesk folder in Microsoft 365, so every broker sees the same clients.</li>')
    +'<li>Find anything fast with <b>Find</b> or Ctrl+K.</li>'
-   +'<li>The site look-up in the Meeting Guide adds the land parcel, building footprint, flood layers and a satellite link to the underwriter submission.</li></ul></div>';
+   +'<li>The site look-up in the Meeting Guide adds the land parcel, buildings, council hazard maps, nearest active fault, ground height and a satellite link to the underwriter submission.</li>'
+   +'<li>On a phone, use your browser\u2019s <b>Add to Home screen</b> so Broker Desk opens like an app. Once opened, it also works without a signal, apart from live look-ups.</li></ul>'
+   +'<h3>About</h3><p class="note" style="margin:0">Broker Desk '+esc((window.RR_CONFIG&&window.RR_CONFIG.version)||"")+'. A working tool for brokers: it drafts and organises, and you remain responsible for the advice and for checking every email before it is sent. Site and hazard data are indicative only and must be confirmed with the council LIM and the insurer. Data: LINZ (CC BY 4.0), Stats NZ, GNS Science, and Christchurch City, Selwyn and Waimakariri councils.</p></div>';
   R.openSheet2("Help",h,'<button class="btn pri" type="button" id="helpdemo">'+(window.__BD_DEMO?"Restart guided demo":"Watch the demo")+'</button><button class="btn" type="button" id="helptour">Quick tour</button><button class="btn" type="button" id="helpset">Settings</button>');
   var db_=$("helpdemo");if(db_)db_.onclick=function(){R.closeSheet2();X.demo(0)};
   var tb=$("helptour");if(tb)tb.onclick=function(){R.closeSheet2();X.tour()};
@@ -4429,5 +4438,6 @@ if(DEMO){
 checkInbox();
 })();
 </script><!--/X-->
+<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost")&&!/claude/.test(location.hostname)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
 </body>
 </html>
