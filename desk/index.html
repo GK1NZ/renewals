@@ -336,7 +336,7 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.3 (26 Nov 2026)"};</script>
+<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.4 (26 Nov 2026)"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
 /*! @azure/msal-common v14.16.0 2024-12-12 */
@@ -830,7 +830,7 @@ async function buildBackup(){
   var out={app:"BrokerDesk",v:2,saved:new Date().toISOString(),cols:{},files:{},ls:{}};
   var keys=await idbKeys("kv");for(var i=0;i<keys.length;i++){var k=String(keys[i]);if(k.indexOf("col:")===0)out.cols[k.slice(4)]=await idbGet("kv",k)}
   var fk=await idbKeys("files");for(var j=0;j<fk.length;j++){var f=await idbGet("files",fk[j]);if(f&&f.blob)out.files[fk[j]]={name:f.name,type:f.type,b64:await b64FromBlob(f.blob)}}
-  try{for(var n=0;n<localStorage.length;n++){var lk=localStorage.key(n);if(/^(rr_|bd_|renewalCapture)/.test(lk)&&!/^rr_(clientid|authority|root|rootmode|mode)$/.test(lk)&&!/^bd_(linzinit|meet|inbox|autobk|backup|changed)$/.test(lk))out.ls[lk]=localStorage.getItem(lk)}}catch(e){}
+  try{for(var n=0;n<localStorage.length;n++){var lk=localStorage.key(n);if(/^(rr_|bd_|renewalCapture)/.test(lk)&&!/^rr_(clientid|authority|root|rootmode|mode)$/.test(lk)&&!/^bd_(linzinit|meet|inbox|autobk|backup|changed)$/.test(lk)&&!/^bd_task/.test(lk))out.ls[lk]=localStorage.getItem(lk)}}catch(e){}
   var d=new Date();
   return{name:"BrokerDesk-backup-"+d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)+".json",json:JSON.stringify(out)};
 }
@@ -4611,6 +4611,203 @@ if(DEMO){
 checkInbox();
 })();
 </script><!--/X-->
+<script>
+/* ---- Outlook tasks (Microsoft To Do) two-way sync. Off until connected. ---- */
+(function(){
+var R=window.__R;if(!R)return;
+var G="https://graph.microsoft.com/v1.0",SC=["Tasks.ReadWrite","User.Read"],LIST="Broker Desk";
+var $=function(i){return document.getElementById(i)},esc=R.esc;
+var ls=function(k){return R.safeGet(k)||""},lset=function(k,v){R.safeSet(k,v)};
+var app=null,acct=null,busy=false,timer=null,state={msg:"",err:"",last:""},selfWrite=0;
+var T=window.__BDTASKS={};
+function off(){return !!window.__BD_DEMO||(location.protocol!=="https:"&&location.hostname!=="localhost"&&!window.__BD_TASK_TEST)}
+function on(){return !off()&&ls("bd_taskon")==="1"}
+function redirect(){return location.origin+location.pathname.replace(/[^\/]*$/,"")+"auth.html"}
+function cid(){return ls("bd_taskcid")||ls("rr_clientid")}
+function auth(){return ls("bd_taskauth")||ls("rr_authority")||"https://login.microsoftonline.com/organizations"}
+function getMap(){try{return JSON.parse(ls("bd_taskmap")||"{}")||{}}catch(e){return {}}}
+function setMap(m){lset("bd_taskmap",JSON.stringify(m))}
+function explain(e){
+  var c=String((e&&(e.errorCode||e.code))||""),m=String((e&&(e.errorMessage||e.message))||e||""),a=(m.match(/AADSTS\d+/)||[""])[0];
+  var it="Send your IT team this: the app is called Broker Desk, application (client) ID "+cid()+", and it needs one delegated Microsoft Graph permission, Tasks.ReadWrite (read and write your own tasks only).";
+  if(/AADSTS(65001|90094|90008|650052|650056)/.test(a)||/consent_required|admin/i.test(c+" "+m)&&/approv|consent/i.test(m))return "Your organisation needs an administrator to approve this app before you can sign in"+(a?" ("+a+")":"")+". "+it;
+  if(a==="AADSTS50011")return "The sign-in address doesn't match the app registration (AADSTS50011). In the app registration, under Authentication, add this as a Single-page application redirect URI: "+redirect();
+  if(a==="AADSTS700016"||a==="AADSTS90002")return "Microsoft doesn't recognise that application (client) ID or tenant ("+a+"). Check the ID was copied in full, and that the app is registered for your organisation.";
+  if(a==="AADSTS50020"||a==="AADSTS500011")return "That account can't use this app registration ("+a+"). Sign in with the work account from the organisation where the app was registered.";
+  if(/popup_window_error|empty_window_error/.test(c))return "The sign-in window was blocked. Allow pop-ups for this site and try again. On a phone, connect from a laptop first.";
+  if(/user_cancelled/.test(c))return "Sign-in was closed before it finished.";
+  if(/interaction_in_progress/.test(c))return "A sign-in window is already open. Finish or close it, then try again.";
+  return "Sign-in didn't complete"+(a?" ("+a+")":c?" ("+c+")":"")+". "+m.split("\n")[0].slice(0,220);
+}
+async function client(){
+  if(app)return app;
+  if(!window.msal)throw new Error("The Microsoft sign-in library didn't load.");
+  app=new msal.PublicClientApplication({auth:{clientId:cid(),authority:auth(),redirectUri:redirect()},cache:{cacheLocation:"localStorage"}});
+  if(app.initialize)await app.initialize();
+  var want=ls("bd_taskacct");acct=app.getAllAccounts().filter(function(a){return !want||a.homeAccountId===want})[0]||null;
+  return app;
+}
+async function token(interactive){
+  if(window.__BD_TASK_TEST)return window.__BD_TASK_TEST;
+  await client();
+  if(!acct){if(!interactive)throw {code:"signin"};var lr=await app.loginPopup({scopes:SC,prompt:"select_account"});acct=lr.account;lset("bd_taskacct",acct.homeAccountId)}
+  try{return (await app.acquireTokenSilent({scopes:SC,account:acct})).accessToken}
+  catch(e){if(!interactive)throw {code:"signin"};return (await app.acquireTokenPopup({scopes:SC,account:acct})).accessToken}
+}
+async function gf(path,opt,interactive,tries){
+  var tk=await token(interactive),o=opt||{};
+  var r=await fetch(/^https:/.test(path)?path:G+path,{method:o.method||"GET",headers:Object.assign({Authorization:"Bearer "+tk},o.body?{"Content-Type":"application/json"}:{}),body:o.body?JSON.stringify(o.body):undefined});
+  if((r.status===429||r.status===503)&&(tries||0)<3){var w=Math.min(30,Number(r.headers.get("Retry-After"))||2);await new Promise(function(z){setTimeout(z,w*1000)});return gf(path,opt,interactive,(tries||0)+1)}
+  if(r.status===404&&o.ok404)return null;
+  if(!r.ok){var t="";try{t=(await r.json()).error.message}catch(e){}throw {code:"graph",status:r.status,message:"Microsoft returned "+r.status+(t?": "+t:"")}}
+  return r.status===204?{}:r.json();
+}
+async function all(path,interactive){var out=[],p=path;while(p){var j=await gf(p,null,interactive);out=out.concat(j.value||[]);p=j["@odata.nextLink"]||""}return out}
+/* ---- field mapping ---- */
+var STEP={"To start":"Get the client's renewal information","Awaiting client details":"Chase the client for their answers","Ready to submit":"Send to underwriters","Out with underwriters":"Chase underwriters and enter quotes","Quotes in, to review":"Compare quotes and send the recommendation","Awaiting client decision":"Get the client's decision"};
+var NEXT={"To start":"Awaiting client details","Awaiting client details":"Ready to submit","Ready to submit":"Out with underwriters","Out with underwriters":"Quotes in, to review","Quotes in, to review":"Awaiting client decision"};
+function norm(s){
+  s=String(s==null?"":s);
+  if(/<[a-z!\/][^>]*>/i.test(s))s=s.replace(/<(br|\/p|\/div|\/li)[^>]*>/gi,"\n").replace(/<[^>]+>/g,"").replace(/&nbsp;/g," ").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,"&");
+  return s.replace(/\r\n?/g,"\n").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+function want(r){
+  var step=(r.next||"").trim()||STEP[r.status]||r.status;
+  if(r.tkHold&&r.status==="Awaiting client decision"&&!(r.next||"").trim())step="Record the client's decision in Broker Desk";
+  return {t:(r.client||"Client")+" – "+step+(r.date?" (renews "+R.fmtDate(r.date)+")":""),d:r.followUp||r.date||"",n:norm(r.notes)};
+}
+function dueOut(d){return d?{dateTime:d+"T00:00:00",timeZone:(Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC")}:null}
+function pad(n){return (n<10?"0":"")+n}
+function dueIn(x){
+  if(!x||!x.dateTime)return "";var s=String(x.dateTime);
+  if(!x.timeZone||/^(utc|etc\/utc|gmt)$/i.test(x.timeZone)){var d=new Date(s.replace(/(\.\d{3})\d+/,"$1").replace(/Z?$/,"Z"));if(isNaN(d))return s.slice(0,10);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+  return s.slice(0,10);
+}
+function mine(){var d=R.docs().filter(function(r){return r&&r.id&&r.client&&(window.__BD_TASK_TEST||!/^demo_/.test(r.id))});try{if(window.__BDX&&window.__BDX.team&&window.__BDX.team()){var n=(window.__RR_ME&&window.__RR_ME.name)||"";d=d.filter(function(r){return !r.owner||r.owner===n})}}catch(e){}return d}
+function isOpen(r){return R.CLOSED.indexOf(r.status)<0}
+async function save(r,patch,line){patch.updated=new Date().toISOString();patch.log=R.logAdd(r,line);selfWrite=Date.now();await R.write(R.coll().doc(r.id).update(patch));Object.assign(r,patch)}
+async function listId(interactive,create){
+  var id=ls("bd_tasklist");if(id)return id;
+  var L=await all("/me/todo/lists?$top=100",interactive),hit=L.filter(function(x){return x.displayName===LIST})[0];
+  if(!hit&&create)hit=await gf("/me/todo/lists",{method:"POST",body:{displayName:LIST}},interactive);
+  if(hit){lset("bd_tasklist",hit.id);return hit.id}return "";
+}
+function extId(t){var l=(t.linkedResources||[]).filter(function(x){return x.applicationName===LIST})[0];return l?l.externalId:""}
+/* ---- the sync ---- */
+T.sync=async function(interactive){
+  if(!on()||busy||!R.coll()||!R.canWrite())return;busy=true;state.err="";var n={made:0,sent:0,got:0,ticked:0};
+  try{
+    var lid=await listId(interactive,true),base="/me/todo/lists/"+lid+"/tasks";
+    var remote;try{remote=await all(base+"?$top=100",interactive)}catch(e){if(e&&e.status===404){lset("bd_tasklist","");lid=await listId(interactive,true);base="/me/todo/lists/"+lid+"/tasks";remote=await all(base+"?$top=100",interactive)}else throw e}
+    var byT={},byX={};remote.forEach(function(t){byT[t.id]=t;var x=extId(t);if(x)byX[x]=t});
+    var map=getMap(),recs=mine(),seen={};
+    for(var i=0;i<recs.length;i++){
+      var r=recs[i],e=map[r.id],t=e&&byT[e.tid];seen[r.id]=1;
+      if(!isOpen(r)){
+        if(e&&t&&t.status!=="completed"){await gf(base+"/"+e.tid,{method:"PATCH",body:{status:"completed"}},interactive);n.sent++}
+        if(e){e.c=true;e.closed=true}
+        continue;
+      }
+      if(!t&&byX[r.id]){t=byX[r.id];var w0=want(r);e=map[r.id]={tid:t.id,t:t.title,d:dueIn(t.dueDateTime),n:norm(t.body&&t.body.content),c:t.status==="completed"};if(e.c)e.c=false,e.reopen=true}
+      if(!t){
+        var w=want(r),body={title:w.t,body:{content:w.n,contentType:"text"},linkedResources:[{webUrl:location.origin+location.pathname,applicationName:LIST,displayName:"Open Broker Desk",externalId:r.id}]};
+        if(w.d)body.dueDateTime=dueOut(w.d);
+        var made=await gf(base,{method:"POST",body:body},interactive);map[r.id]={tid:made.id,t:w.t,d:w.d,n:w.n,c:false};n.made++;setMap(map);continue;
+      }
+      if(e.closed){e.closed=false;e.c=true;e.reopen=true}
+      var rd=dueIn(t.dueDateTime),rn=norm(t.body&&t.body.content),rc=t.status==="completed",patch={},lines=[];
+      /* remote -> local */
+      if(rc&&!e.c&&!e.reopen){
+        n.ticked++;
+        if((r.next||"").trim()){patch.next="";patch.followUp="";lines.push("Ticked in Outlook: “"+r.next.trim()+"” done")}
+        else if(NEXT[r.status]){patch.status=NEXT[r.status];patch.statusAt=new Date().toISOString();patch.followUp="";patch.tkHold=false;lines.push("Ticked in Outlook: moved to "+NEXT[r.status])}
+        else{patch.tkHold=true;patch.followUp="";lines.push("Ticked in Outlook. Record the decision in Broker Desk to finish")}
+      }else{
+        if(rd!==e.d&&(r.followUp||r.date||"")===e.d&&rd){patch.followUp=rd;lines.push("Follow up set to "+R.fmtDate(rd)+" in Outlook")}
+      }
+      if(rn!==e.n&&norm(r.notes)===e.n){patch.notes=rn;lines.push("Notes updated in Outlook")}
+      if(lines.length){await save(r,patch,lines.join(". "));n.got++}
+      /* local -> remote */
+      var w2=want(r),out={};
+      if(w2.t!==t.title)out.title=w2.t;
+      if(w2.d!==rd)out.dueDateTime=dueOut(w2.d);
+      if(w2.n!==rn)out.body={content:w2.n,contentType:"text"};
+      if(rc)out.status="notStarted";
+      if(Object.keys(out).length){await gf(base+"/"+e.tid,{method:"PATCH",body:out},interactive);n.sent++}
+      map[r.id]={tid:e.tid,t:w2.t,d:w2.d,n:w2.n,c:false};
+    }
+    Object.keys(map).forEach(function(id){if(!seen[id]&&!map[id].gone){map[id].gone=true;map[id].pend=true}});
+    for(var id in map){if(map[id].pend){var tt=byT[map[id].tid];if(tt&&tt.status!=="completed"){await gf(base+"/"+map[id].tid,{method:"PATCH",body:{status:"completed"}},interactive);n.sent++}delete map[id].pend}}
+    setMap(map);state.last=new Date().toISOString();lset("bd_tasklast",state.last);
+    state.msg=(n.made||n.sent||n.got)?[n.made?n.made+" added to Outlook":"",n.sent?n.sent+" updated in Outlook":"",n.got?n.got+" updated from Outlook":""].filter(Boolean).join(", ")+".":"Everything is up to date.";
+  }catch(e){
+    state.err=e&&e.code==="signin"?"Outlook tasks needs you to sign in again. Open More, Outlook tasks, and press Sync now.":e&&e.code==="graph"?e.message:explain(e);
+    if(e&&e.status===403)state.err="Microsoft refused access to your tasks (403). Your organisation may block the To Do service or this app. "+state.err;
+  }
+  busy=false;T.last=n;draw();return n;
+};
+function kick(ms){if(!on())return;clearTimeout(timer);timer=setTimeout(function(){T.sync(false)},ms)}
+R.on("data",function(){kick(Date.now()-selfWrite<3000?4000:2500)});
+setInterval(function(){if(on()&&!document.hidden)T.sync(false)},120000);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)kick(800)});
+/* ---- screen ---- */
+function when(iso){if(!iso)return "not yet";var d=new Date(iso);return d.toLocaleDateString()+" "+d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function draw(){var b=$("tkbody");if(b)b.innerHTML=body()}
+function body(){
+  var h="";
+  if(on()){
+    h+='<p style="margin:0 0 6px"><b>Connected'+(ls("bd_taskwho")?" as "+esc(ls("bd_taskwho")):"")+'.</b></p><p class="note" style="margin:0 0 10px">Last synced: '+esc(when(state.last||ls("bd_tasklast")))+'. '+esc(state.msg)+'</p>'+
+      (state.err?'<p class="note" role="alert" style="color:#8a1c14">'+esc(state.err)+'</p>':'')+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn pri" type="button" id="tksync">Sync now</button><button class="btn" type="button" id="tkoff">Disconnect</button></div>';
+  }else{
+    h+='<div class="full"><label for="tkcid">Application (client) ID</label><input class="in" id="tkcid" value="'+esc(cid())+'" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false"></div>'+
+      '<div class="full" style="margin-top:8px"><label for="tkten">Directory (tenant) ID <span class="note">(optional; leave blank if unsure)</span></label><input class="in" id="tkten" value="'+esc((ls("bd_taskauth").match(/[0-9a-f-]{36}/i)||[""])[0])+'" autocomplete="off" spellcheck="false"></div>'+
+      '<p class="note" id="tkmsg" role="alert" style="'+(state.err?"color:#8a1c14":"")+'">'+esc(state.err)+'</p>'+
+      '<button class="btn pri" type="button" id="tkon">Connect to Outlook tasks</button>'+
+      '<details style="margin-top:14px"><summary style="cursor:pointer;color:var(--accent)">First time: how to get the application ID</summary><ol class="note" style="padding-left:18px;line-height:1.5">'+
+      '<li>On a laptop, go to <b>entra.microsoft.com</b> and sign in with your work account. Open <b>Applications</b>, then <b>App registrations</b>, then <b>New registration</b>. If you are not allowed to, send these steps to your IT team.</li>'+
+      '<li>Name it <b>Broker Desk</b>. For account types choose <b>Accounts in this organizational directory only</b>.</li>'+
+      '<li>Under Redirect URI choose <b>Single-page application (SPA)</b> and paste: <br><code style="user-select:all;word-break:break-all">'+esc(redirect())+'</code></li>'+
+      '<li>Press Register. Open <b>API permissions</b>, <b>Add a permission</b>, <b>Microsoft Graph</b>, <b>Delegated permissions</b>, and tick <b>Tasks.ReadWrite</b>. (User.Read is already there.)</li>'+
+      '<li>On the Overview page copy the <b>Application (client) ID</b> and the <b>Directory (tenant) ID</b> into the boxes above, then press Connect.</li></ol></details>';
+  }
+  h+='<h3 style="margin:16px 0 4px;font-size:14px">How it works</h3><ul class="note" style="padding-left:18px;line-height:1.5;margin:0">'+
+    '<li>Each open renewal becomes one task in a list called <b>Broker Desk</b> in Outlook and Microsoft To Do. The title shows the client and the next step.</li>'+
+    '<li>The due date is the follow-up date (or the renewal date if none is set). Change it in either place and the other follows.</li>'+
+    '<li>Notes go both ways. The title is written by Broker Desk.</li>'+
+    '<li>Tick the task in Outlook and Broker Desk completes the current step, then the task comes back with the next step. It never marks a client Renewed or Lost; do that in Broker Desk.</li>'+
+    '<li>Deleting a task in Outlook does not delete the client. The task is put back on the next sync.</li>'+
+    '<li>Sync runs while Broker Desk is open. Connect on one device only (your laptop), because each device keeps its own client list.</li>'+
+    '<li>Prospects and the sample clients are not included.</li></ul>';
+  return h;
+}
+T.open=function(){R.openSheet2("Outlook tasks",'<div id="tkbody">'+body()+'</div>','')};
+document.addEventListener("click",async function(ev){
+  var t=ev.target;if(!t||!t.id)return;
+  if(t.id==="bdtasks"){T.open();return}
+  if(t.id==="tksync"){state.msg="Syncing…";draw();await T.sync(true);return}
+  if(t.id==="tkoff"){lset("bd_taskon","");state.err="";state.msg="";draw();R.toast("Outlook tasks disconnected. Your tasks stay in Outlook.");return}
+  if(t.id==="tkon"){
+    var c=$("tkcid").value.trim(),ten=$("tkten").value.trim(),m=$("tkmsg");state.err="";
+    if(!window.__BD_TASK_TEST&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c)){m.style.color="#8a1c14";m.textContent="Paste the Application (client) ID. It looks like 1234abcd-12ab-34cd-56ef-1234567890ab.";return}
+    if(c!==ls("bd_taskcid")||ten!==(ls("bd_taskauth").match(/[0-9a-f-]{36}/i)||[""])[0]){app=null;acct=null;lset("bd_taskacct","");lset("bd_tasklist","")}
+    lset("bd_taskcid",c);lset("bd_taskauth",ten?"https://login.microsoftonline.com/"+ten:"");
+    m.style.color="";m.textContent="Opening Microsoft sign-in…";t.disabled=true;
+    try{
+      var me=await gf("/me?$select=displayName,userPrincipalName",null,true);lset("bd_taskwho",me.displayName||me.userPrincipalName||"");
+      var lid=await listId(true,false);
+      if(lid&&!Object.keys(getMap()).length){var ex=await all("/me/todo/lists/"+lid+"/tasks?$top=100",true);if(ex.length)R.toast("Found an existing Broker Desk list with "+ex.length+" task"+(ex.length===1?"":"s")+". Matching clients will be linked, not duplicated.")}
+      lset("bd_taskon","1");state.msg="Syncing…";draw();await T.sync(true);
+    }catch(e){state.err=e&&e.code==="graph"?e.message:explain(e);draw()}
+    return;
+  }
+});
+/* menu entry */
+function menu(){var w=$("wording");if(!w||$("bdtasks")||off())return;var b=document.createElement("button");b.type="button";b.id="bdtasks";b.textContent="Outlook tasks";w.parentNode.insertBefore(b,w.nextSibling)}
+menu();R.on("data",menu);
+T.state=state;T.on=on;T.explain=explain;T.dueIn=dueIn;T.dueOut=dueOut;T.norm=norm;
+})();
+</script>
 <script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost")&&!/claude/.test(location.hostname)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
 </body>
 </html>
