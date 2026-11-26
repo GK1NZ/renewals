@@ -4633,6 +4633,7 @@ function explain(e){
   if(/AADSTS(65001|90094|90008|650052|650056)/.test(a)||/consent_required|admin/i.test(c+" "+m)&&/approv|consent/i.test(m))return "Your organisation needs an administrator to approve this app before you can sign in"+(a?" ("+a+")":"")+". "+it;
   if(a==="AADSTS50011")return "The sign-in address doesn't match the app registration (AADSTS50011). In the app registration, under Authentication, add this as a Single-page application redirect URI: "+redirect();
   if(a==="AADSTS700016"||a==="AADSTS90002")return "Microsoft doesn't recognise that application (client) ID or tenant ("+a+"). Check the ID was copied in full, and that the app is registered for your organisation.";
+  if(a==="AADSTS50194")return "This app is registered for one organisation only, so it needs the Directory (tenant) ID (AADSTS50194). Copy it from the app's Overview page into the tenant box and try again.";
   if(a==="AADSTS50020"||a==="AADSTS500011")return "That account can't use this app registration ("+a+"). Sign in with the work account from the organisation where the app was registered.";
   if(/popup_window_error|empty_window_error/.test(c))return "The sign-in window was blocked. Allow pop-ups for this site and try again. On a phone, connect from a laptop first.";
   if(/user_cancelled/.test(c))return "Sign-in was closed before it finished.";
@@ -4676,7 +4677,9 @@ function want(r){
   if(r.tkHold&&r.status==="Awaiting client decision"&&!(r.next||"").trim())step="Record the client's decision in Broker Desk";
   return {t:(r.client||"Client")+" – "+step+(r.date?" (renews "+R.fmtDate(r.date)+")":""),d:r.followUp||r.date||"",n:norm(r.notes)};
 }
-function dueOut(d){return d?{dateTime:d+"T00:00:00",timeZone:(Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC")}:null}
+function dueOut(d){if(!d)return null;var p=d.split("-"),x=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return {dateTime:x.toISOString().replace(/Z$/,""),timeZone:"UTC"}}
+function stamp(t){return (t.completedDateTime&&t.completedDateTime.dateTime)||t.lastModifiedDateTime||"done"}
+function seen(e,t){e.rt=t.title;e.rd=dueIn(t.dueDateTime);e.rn=norm(t.body&&t.body.content)}
 function pad(n){return (n<10?"0":"")+n}
 function dueIn(x){
   if(!x||!x.dateTime)return "";var s=String(x.dateTime);
@@ -4694,49 +4697,57 @@ async function listId(interactive,create){
 }
 function extId(t){var l=(t.linkedResources||[]).filter(function(x){return x.applicationName===LIST})[0];return l?l.externalId:""}
 /* ---- the sync ---- */
-T.sync=async function(interactive){
+T.sync=function(interactive){
+  if(navigator.locks&&navigator.locks.request)return navigator.locks.request("bd-tasks-sync",{ifAvailable:true},function(l){return l?run(interactive):undefined});
+  return run(interactive);
+};
+async function run(interactive){
   if(!on()||busy||!R.coll()||!R.canWrite())return;busy=true;state.err="";var n={made:0,sent:0,got:0,ticked:0};
   try{
     var lid=await listId(interactive,true),base="/me/todo/lists/"+lid+"/tasks";
     var remote;try{remote=await all(base+"?$top=100",interactive)}catch(e){if(e&&e.status===404){lset("bd_tasklist","");lid=await listId(interactive,true);base="/me/todo/lists/"+lid+"/tasks";remote=await all(base+"?$top=100",interactive)}else throw e}
     var byT={},byX={};remote.forEach(function(t){byT[t.id]=t;var x=extId(t);if(x)byX[x]=t});
-    var map=getMap(),recs=mine(),seen={};
+    var map=getMap(),recs=mine(),got={};
     for(var i=0;i<recs.length;i++){
-      var r=recs[i],e=map[r.id],t=e&&byT[e.tid];seen[r.id]=1;
+      var r=recs[i],e=map[r.id],t=e&&byT[e.tid];got[r.id]=1;
       if(!isOpen(r)){
         if(e&&t&&t.status!=="completed"){await gf(base+"/"+e.tid,{method:"PATCH",body:{status:"completed"}},interactive);n.sent++}
-        if(e){e.c=true;e.closed=true}
+        if(e){e.closed=true;setMap(map)}
         continue;
       }
-      if(!t&&byX[r.id]){t=byX[r.id];var w0=want(r);e=map[r.id]={tid:t.id,t:t.title,d:dueIn(t.dueDateTime),n:norm(t.body&&t.body.content),c:t.status==="completed"};if(e.c)e.c=false,e.reopen=true}
+      if(!t&&byX[r.id]){t=byX[r.id];e=map[r.id]={tid:t.id,t:null,d:null,n:null,adopt:true};seen(e,t);setMap(map)}
       if(!t){
         var w=want(r),body={title:w.t,body:{content:w.n,contentType:"text"},linkedResources:[{webUrl:location.origin+location.pathname,applicationName:LIST,displayName:"Open Broker Desk",externalId:r.id}]};
         if(w.d)body.dueDateTime=dueOut(w.d);
-        var made=await gf(base,{method:"POST",body:body},interactive);map[r.id]={tid:made.id,t:w.t,d:w.d,n:w.n,c:false};n.made++;setMap(map);continue;
+        var made=await gf(base,{method:"POST",body:body},interactive);var ne=map[r.id]={tid:made.id,t:w.t,d:w.d,n:w.n};seen(ne,made.title!=null?made:{title:w.t,dueDateTime:body.dueDateTime,body:body.body});n.made++;setMap(map);continue;
       }
-      if(e.closed){e.closed=false;e.c=true;e.reopen=true}
       var rd=dueIn(t.dueDateTime),rn=norm(t.body&&t.body.content),rc=t.status==="completed",patch={},lines=[];
+      if(e.rd===undefined){e.rd=rd;e.rn=rn;e.rt=t.title}
+      var skipTick=e.closed||e.adopt;e.closed=false;e.adopt=false;
       /* remote -> local */
-      if(rc&&!e.c&&!e.reopen){
-        n.ticked++;
-        if((r.next||"").trim()){patch.next="";patch.followUp="";lines.push("Ticked in Outlook: “"+r.next.trim()+"” done")}
+      if(rc&&!skipTick&&r.tkDone!==stamp(t)){
+        n.ticked++;patch.tkDone=stamp(t);
+        if((r.next||"").trim()){patch.next="";patch.followUp="";lines.push("Ticked in Outlook: \u201c"+r.next.trim()+"\u201d done")}
         else if(NEXT[r.status]){patch.status=NEXT[r.status];patch.statusAt=new Date().toISOString();patch.followUp="";patch.tkHold=false;lines.push("Ticked in Outlook: moved to "+NEXT[r.status])}
         else{patch.tkHold=true;patch.followUp="";lines.push("Ticked in Outlook. Record the decision in Broker Desk to finish")}
-      }else{
-        if(rd!==e.d&&(r.followUp||r.date||"")===e.d&&rd){patch.followUp=rd;lines.push("Follow up set to "+R.fmtDate(rd)+" in Outlook")}
+      }else if(!rc){
+        if(rd!==e.rd&&rd&&e.d!==null&&(r.followUp||r.date||"")===e.d){patch.followUp=rd;lines.push("Follow up set to "+R.fmtDate(rd)+" in Outlook")}
       }
-      if(rn!==e.n&&norm(r.notes)===e.n){patch.notes=rn;lines.push("Notes updated in Outlook")}
+      if(rn!==e.rn&&e.n!==null&&norm(r.notes)===e.n){patch.notes=rn;lines.push("Notes updated in Outlook")}
+      var took={d:"followUp" in patch&&!patch.tkDone&&patch.followUp===rd,n:"notes" in patch};
       if(lines.length){await save(r,patch,lines.join(". "));n.got++}
-      /* local -> remote */
+      /* local -> remote: push what changed here since the last push, and put the title back if it was edited there */
       var w2=want(r),out={};
-      if(w2.t!==t.title)out.title=w2.t;
-      if(w2.d!==rd)out.dueDateTime=dueOut(w2.d);
-      if(w2.n!==rn)out.body={content:w2.n,contentType:"text"};
+      if(took.d)e.d=w2.d;if(took.n)e.n=w2.n;
+      if(w2.t!==e.t||t.title!==e.rt)out.title=w2.t;
+      if(w2.d!==e.d)out.dueDateTime=dueOut(w2.d);
+      if(w2.n!==e.n)out.body={content:w2.n,contentType:"text"};
       if(rc)out.status="notStarted";
-      if(Object.keys(out).length){await gf(base+"/"+e.tid,{method:"PATCH",body:out},interactive);n.sent++}
-      map[r.id]={tid:e.tid,t:w2.t,d:w2.d,n:w2.n,c:false};
+      e.rt=t.title;e.rd=rd;e.rn=rn;
+      if(Object.keys(out).length){var res=await gf(base+"/"+e.tid,{method:"PATCH",body:out},interactive);n.sent++;if(res&&res.title!=null)seen(e,res)}
+      e.t=w2.t;e.d=w2.d;e.n=w2.n;setMap(map);
     }
-    Object.keys(map).forEach(function(id){if(!seen[id]&&!map[id].gone){map[id].gone=true;map[id].pend=true}});
+    Object.keys(map).forEach(function(id){if(!got[id]&&!map[id].gone){map[id].gone=true;map[id].pend=true}});
     for(var id in map){if(map[id].pend){var tt=byT[map[id].tid];if(tt&&tt.status!=="completed"){await gf(base+"/"+map[id].tid,{method:"PATCH",body:{status:"completed"}},interactive);n.sent++}delete map[id].pend}}
     setMap(map);state.last=new Date().toISOString();lset("bd_tasklast",state.last);
     state.msg=(n.made||n.sent||n.got)?[n.made?n.made+" added to Outlook":"",n.sent?n.sent+" updated in Outlook":"",n.got?n.got+" updated from Outlook":""].filter(Boolean).join(", ")+".":"Everything is up to date.";
@@ -4745,7 +4756,7 @@ T.sync=async function(interactive){
     if(e&&e.status===403)state.err="Microsoft refused access to your tasks (403). Your organisation may block the To Do service or this app. "+state.err;
   }
   busy=false;T.last=n;draw();return n;
-};
+}
 function kick(ms){if(!on())return;clearTimeout(timer);timer=setTimeout(function(){T.sync(false)},ms)}
 R.on("data",function(){kick(Date.now()-selfWrite<3000?4000:2500)});
 setInterval(function(){if(on()&&!document.hidden)T.sync(false)},120000);
@@ -4761,7 +4772,7 @@ function body(){
       '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn pri" type="button" id="tksync">Sync now</button><button class="btn" type="button" id="tkoff">Disconnect</button></div>';
   }else{
     h+='<div class="full"><label for="tkcid">Application (client) ID</label><input class="in" id="tkcid" value="'+esc(cid())+'" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false"></div>'+
-      '<div class="full" style="margin-top:8px"><label for="tkten">Directory (tenant) ID <span class="note">(optional; leave blank if unsure)</span></label><input class="in" id="tkten" value="'+esc((ls("bd_taskauth").match(/[0-9a-f-]{36}/i)||[""])[0])+'" autocomplete="off" spellcheck="false"></div>'+
+      '<div class="full" style="margin-top:8px"><label for="tkten">Directory (tenant) ID</label><input class="in" id="tkten" value="'+esc((ls("bd_taskauth").match(/[0-9a-f-]{36}/i)||[""])[0])+'" autocomplete="off" spellcheck="false"></div>'+
       '<p class="note" id="tkmsg" role="alert" style="'+(state.err?"color:#8a1c14":"")+'">'+esc(state.err)+'</p>'+
       '<button class="btn pri" type="button" id="tkon">Connect to Outlook tasks</button>'+
       '<details style="margin-top:14px"><summary style="cursor:pointer;color:var(--accent)">First time: how to get the application ID</summary><ol class="note" style="padding-left:18px;line-height:1.5">'+
@@ -4772,10 +4783,12 @@ function body(){
       '<li>On the Overview page copy the <b>Application (client) ID</b> and the <b>Directory (tenant) ID</b> into the boxes above, then press Connect.</li></ol></details>';
   }
   h+='<h3 style="margin:16px 0 4px;font-size:14px">How it works</h3><ul class="note" style="padding-left:18px;line-height:1.5;margin:0">'+
+    '<li><b>Once connected, client names, next steps and notes are copied into your Microsoft account</b> (your employer\u2019s, if you sign in with a work account). Take a backup in Settings before you connect for the first time.</li>'+
     '<li>Each open renewal becomes one task in a list called <b>Broker Desk</b> in Outlook and Microsoft To Do. The title shows the client and the next step.</li>'+
     '<li>The due date is the follow-up date (or the renewal date if none is set). Change it in either place and the other follows.</li>'+
     '<li>Notes go both ways. The title is written by Broker Desk.</li>'+
-    '<li>Tick the task in Outlook and Broker Desk completes the current step, then the task comes back with the next step. It never marks a client Renewed or Lost; do that in Broker Desk.</li>'+
+    '<li>Tick the task in Outlook and Broker Desk completes the current step, then the task comes back with the next step, due on the renewal date until you set a follow-up. It never marks a client Renewed or Lost; do that in Broker Desk.</li>'+
+    '<li>When a client is marked Renewed or Lost the task is completed. Processing, invoicing and payment are tracked in Broker Desk only.</li>'+
     '<li>Deleting a task in Outlook does not delete the client. The task is put back on the next sync.</li>'+
     '<li>Sync runs while Broker Desk is open. Connect on one device only (your laptop), because each device keeps its own client list.</li>'+
     '<li>Prospects and the sample clients are not included.</li></ul>';
@@ -4790,6 +4803,7 @@ document.addEventListener("click",async function(ev){
   if(t.id==="tkon"){
     var c=$("tkcid").value.trim(),ten=$("tkten").value.trim(),m=$("tkmsg");state.err="";
     if(!window.__BD_TASK_TEST&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c)){m.style.color="#8a1c14";m.textContent="Paste the Application (client) ID. It looks like 1234abcd-12ab-34cd-56ef-1234567890ab.";return}
+    if(!window.__BD_TASK_TEST&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ten)){m.style.color="#8a1c14";m.textContent="Paste the Directory (tenant) ID as well. It is on the same Overview page as the application ID.";return}
     if(c!==ls("bd_taskcid")||ten!==(ls("bd_taskauth").match(/[0-9a-f-]{36}/i)||[""])[0]){app=null;acct=null;lset("bd_taskacct","");lset("bd_tasklist","")}
     lset("bd_taskcid",c);lset("bd_taskauth",ten?"https://login.microsoftonline.com/"+ten:"");
     m.style.color="";m.textContent="Opening Microsoft sign-in…";t.disabled=true;
