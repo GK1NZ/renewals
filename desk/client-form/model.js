@@ -53,12 +53,12 @@ var SEG={
     lines:['mdamage','bi','liab','statutory','pi','dno','cyber','fleet','cargo','crime','machinery']}
 };
 
-var MOBILE_TRADES={building:1,plumbing:1,electrical:1,painting:1,roofing:1,landscaping:1,hvac:1,concrete:1,buildwash:1,finishtrades:1,arborist:1,solar:1,avtele:1,pest:1,cleaning:1};
+var MOBILE_TRADES={building:1,plumbing:1,electrical:1,painting:1,roofing:1,landscaping:1,hvac:1,concrete:1,buildwash:1,finishtrades:1,arborist:1,solar:1,avtele:1,pest:1,cleaning:1,civil:1,scaffold:1,demolition:1,ruralcontract:1,security:1,crane:1,courier:1,passenger:1,drones:1,accounting:'o',legal:'o',it:'o',consulting:'o',engineering:'o',marketing:'o',recruitment:'o',realestate:'o',financial:'o',valuers:'o'};
 function mobileBI(base){
-  var gate=['gp','period','conc','gpChange'],out=[Q('relyWs','Does the business rely on a workshop, yard or depot to operate?',YN,{full:true,hint:'Mobile trades working from vans and client sites can usually keep earning after a fire at the yard. For them, Additional Increased Cost of Working (AICOW) cover is normally a better fit than gross profit cover: it pays the extra cost of keeping going, such as hiring temporary space, equipment or vehicles.'})];
+  var gate=['gp','period','conc','gpChange'],off=MOBILE_TRADES[state.ind]==='o',out=[off?Q('relyWs','Does the business need its own office to keep earning?',YN,{full:true,hint:'Most professional and service firms can keep earning from home or a borrowed office after a fire. For them, Additional Increased Cost of Working (AICOW) cover is normally a better fit than gross profit cover: it pays the extra cost of keeping going, such as a temporary office, hired IT equipment, recovering data or paying other firms to do the work.'}):Q('relyWs','Does the business rely on a workshop, yard or depot to operate?',YN,{full:true,hint:'Mobile trades working from vans and client sites can usually keep earning after a fire at the yard. For them, Additional Increased Cost of Working (AICOW) cover is normally a better fit than gross profit cover: it pays the extra cost of keeping going, such as hiring tools, plant or equipment, paying other contractors to do jobs, or temporary space.'})];
   base.forEach(function(q){
     if(q.id==='icow')return;
-    if(q.id==='icowAmt'){out.push(Object.assign({},q,{label:'Estimated extra costs of working (AICOW) over the indemnity period',showIf:null,hint:'What it would cost above normal running costs to keep trading: hire of space, tools and vehicles, overtime, expediting.'}));out.push(Q('aicowM','How long might you need it?','opt',{opts:['3 months','6 months','12 months','18 months']}));return;}
+    if(q.id==='icowAmt'){out.push(Object.assign({},q,{label:'Estimated extra costs of working (AICOW) over the indemnity period',showIf:null,hint:'What it would cost above normal running costs to keep trading: hire of tools, plant, equipment or space, paying other contractors or firms to do the work, overtime, expediting.'}));out.push(Q('aicowM','How long might you need it?','opt',{opts:['3 months','6 months','12 months','18 months']}));return;}
     out.push(gate.indexOf(q.id)>-1?Object.assign({},q,{showIf:['relyWs','Yes']}):q);
   });
   var k=-1;out.forEach(function(q,n){if(q.id==='icowAmt')k=n});if(k>1){var pr=out.splice(k,2);out.splice(1,0,pr[0],pr[1]);}
@@ -178,7 +178,7 @@ var LINES={
   bi:{name:'Business Interruption',desc:'Gross profit and indemnity period',q:[
     Q('gp','Annual gross profit','num',{sum:true}),
     Q('period','Indemnity period','opt',{full:true,opts:['6 months','12 months','18 months','24 months','36 months']}),
-    Q('icow','Additional increased costs of working: will you need to spend extra to keep trading after an accepted claim (temporary premises, equipment hire, overtime, expediting)?',YN,{full:true}),
+    Q('icow','Additional increased costs of working: will you need to spend extra to keep trading after an accepted claim (hiring tools, plant or equipment, paying other contractors to do the work, temporary premises, overtime, expediting)?',YN,{full:true}),
     Q('icowAmt','Estimated total extra cost over the indemnity period','num',{showIf:['icow','Yes'],hint:'Roughly what it would cost above normal running costs.'}),
     Q('conc','Any customer or supplier above 25% of the business?',YN,{full:true}),
     Q('concD','Who, and what share?','area',{full:true,showIf:['conc','Yes']}),
@@ -341,6 +341,7 @@ function mergeInd(def,packs){
   }
   addPart(def);
   (def.packs||[]).forEach(function(k){if(packs[k])addPart(packs[k]);});
+  (def.drop||[]).forEach(function(d){var m=/^ask:([^|]+)\|(.*)$/.exec(d);if(m){if(out.ask[m[1]])out.ask[m[1]]=out.ask[m[1]].filter(function(x){return x[0]!==m[2];});}else if(d.indexOf('profile:')===0){var id=d.slice(8);out.profile=out.profile.filter(function(q){return q.id!==id;});}});
   return out;
 }
 

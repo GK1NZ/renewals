@@ -110,7 +110,7 @@ var CALCS={
     result:'Suggested annual gross profit'},
   icow:{title:'Extra costs of working',
     intro:'If an insured event stopped or slowed your trading, what extra would you have to spend each month to keep going, over and above normal running costs?',
-    rows:[['prem','Temporary premises, storage or relocation, per month','$'],['hire','Hire of equipment, vehicles or machinery, per month','$'],['staff','Overtime, extra staff or outside contractors, per month','$'],['exp','Expediting, urgent freight, telling customers and extra advertising, per month','$'],['mths','Months you would expect to need these (type a number, not dollars)','%']],
+    rows:[['prem','Temporary premises, storage or relocation, per month','$'],['hire','Hire of equipment, tools or machinery, per month','$'],['staff','Overtime, extra staff, or paying other contractors or firms to do the work, per month','$'],['exp','Expediting, urgent freight, telling customers and extra advertising, per month','$'],['mths','Months you would expect to need these (type a number, not dollars)','%']],
     compute:function(v){var m=(v.prem||0)+(v.hire||0)+(v.staff||0)+(v.exp||0);var t=Math.round(m*(v.mths||0));return {total:t,lines:[['Extra cost per month',m],['Over '+(v.mths||0)+' months',t]]};},
     note:'Only count costs above what you already pay. Do not include lost profit, which is in the gross profit figure. A policy may limit this cover to a sum or a percentage of gross profit.',
     result:'Suggested extra costs of working'},
