@@ -240,8 +240,8 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script src="lib/xlsx.full.min.js"></script>
-<script src="lib/jspdf.umd.min.js"></script>
+<script src="lib/xlsx.js"></script>
+<script src="lib/jspdf.js"></script>
 <script>
 /* Email drafts, reminders and file saves on this device. Shared by Broker Desk and the Meeting Guide. */
 (function(){
@@ -366,7 +366,7 @@ window.BDDevice={saveBlob:saveBlob,toEml:toEml,draft:draft,ics:ics,msg:msg,mailM
 "use strict";
 /* data files are plain scripts, so they load from a folder on disk as well as from a website */
 var of=window.fetch;window.__PF=window.__PF||{};
-function viaScript(p){return new Promise(function(res,rej){if(p in window.__PF)return res(window.__PF[p]);var s=document.createElement("script");s.src=p+".js";s.onload=function(){p in window.__PF?res(window.__PF[p]):rej(new Error("missing"))};s.onerror=function(){rej(new Error("load"))};document.head.appendChild(s)})}
+function viaScript(p){return new Promise(function(res,rej){if(p in window.__PF)return res(window.__PF[p]);var s=document.createElement("script");s.src=p.replace(/\.(json|txt)$/,"-$1")+".js";s.onload=function(){p in window.__PF?res(window.__PF[p]):rej(new Error("missing"))};s.onerror=function(){rej(new Error("load"))};document.head.appendChild(s)})}
 window.fetch=function(u,o){var p=typeof u==="string"?u:(u&&u.url)||"";if(/^data\//.test(p)){p=p.split("?")[0];return viaScript(p).then(function(t){return new Response(t,{status:200,headers:{"Content-Type":/\.json$/.test(p)?"application/json":"text/plain"}})},function(){return new Response("",{status:404})})}return of.apply(this,arguments)};
 
 function ls(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
