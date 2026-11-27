@@ -1659,7 +1659,7 @@ function rcPanel(){
         '<div class="btnrow" style="margin:0"><button class="btn primary" type="button" id="rc_mail"'+(busy?' disabled':'')+'>Email the link'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_copy">Copy the link</button>'+(ph?'<a class="btn" href="sms:'+esc(ph)+'?&body='+encodeURIComponent('Your code to open your insurance renewal details: '+RC.code)+'">Text the code</a>':'')+'<button class="btn" type="button" id="rc_new">New link</button></div>';
     }
   }else{h+='<p class="hint" style="margin:6px 0 0">Protected links work when the Meeting Guide is opened from the website, not from a folder on this device. You can still email or copy the details below.</p>';}
-  h+='<div class="rcpdf"><p style="margin:12px 0 6px"><b>Or send a PDF they can type into</b><span class="hint" style="margin:2px 0 0">Every question for their covers, with your answers filled in and blank boxes for the rest. They correct it, confirm at the end and email it back. The PDF itself isn\u2019t locked, so use the protected link for anything sensitive.</span></p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_pdfmail"'+(busy?' disabled':'')+'>Email the PDF'+(String(get('client','email')||'').trim()?' to '+esc(String(get('client','email')).trim()):'')+'</button><button class="btn" type="button" id="rc_pdfdl">Download the PDF</button></div></div>';
+  h+='<div class="rcpdf"><p style="margin:12px 0 6px"><b>Or send a PDF they can type into</b><span class="hint" style="margin:2px 0 0">Every question for their covers, with your answers filled in and blank boxes for the rest. They correct it, confirm at the end and email it back.'+(rcLive()?' The email also gives them the protected online link as another way, and shows you the code to give them.':'')+' The PDF itself isn\u2019t locked, so use the protected link on its own for anything sensitive.</span></p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_pdfmail"'+(busy?' disabled':'')+'>'+(rcLive()?'Email the PDF and the online link':'Email the PDF')+(String(get('client','email')||'').trim()?' to '+esc(String(get('client','email')).trim()):'')+'</button><button class="btn" type="button" id="rc_pdfdl">Download the PDF</button></div></div>';
   h+='<details class="cohow"'+(rcLive()?'':' open')+'><summary>Other ways to send the details</summary><p class="hint" style="margin:6px 0">These put the client’s details straight into an email, unprotected. Fine for many clients, but the protected link is safer.</p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_plain"'+(busy?' disabled':'')+'>Email the details'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_text">Copy the details</button></div></details>';
   h+='<div id="status-rc" role="status">'+statusHTML('rc')+'</div></section>';
   return h;
@@ -1746,9 +1746,31 @@ document.addEventListener('click',async function(e){
   var u8;try{u8=rcPdf();}catch(err){console.error('rcPdf',err&&err.stack||err);setStatus('rc','bad','The PDF couldn’t be made on this device. Try again, or use Copy the details.');return;}
   if(t.id==='rc_pdfdl'){window.BDDevice.saveBlob(rcPdfName(),new Blob([u8],{type:'application/pdf'}));setStatus('rc','ok','PDF saved. Attach it to an email to the client.');return;}
   var to=rcEmailOk();if(!to)return;
-  var body='Hi '+rcFirst()+',\n\nThanks for your time today. Attached is a copy of the information we went through for your insurance renewal.\n\nPlease open it, check each answer, type over anything that’s wrong and fill in any blanks you can. Then tick the confirmation at the end, save the file and email it back to me.\n\nIt works in Adobe Acrobat Reader, Preview on a Mac, or most PDF apps on a phone. If anything is easier to explain by phone, just give me a call.';
+  if(rcLive()&&!RC.link){try{var mk=await rcMake();RC.code=mk.code;RC.link=mk.link;RC.made=Date.now();rcRedraw();}catch(x){}}
+  var body;
+  if(RC.link)body='Hi '+rcFirst()+',\n\nThanks for your time today. Here is the information we went through for your insurance renewal. Please check it and correct anything that\u2019s wrong or missing, whichever way suits you:\n\nOption 1: the attached PDF\nOpen it, type over anything that\u2019s wrong, fill in any blanks, tick the confirmation at the end, then save it and email it back to me. It works in Adobe Acrobat Reader, Preview on a Mac, or most PDF apps on a phone.\n\nOption 2: online\nOpen this link:\n'+RC.link+'\nand enter the code I give you by phone or text. It isn\u2019t in this email, to keep your details safe. Check each section, then follow the last step to send it back to me. The link works for 14 days.\n\nIf anything is easier to explain by phone, just give me a call.';
+  else body='Hi '+rcFirst()+',\n\nThanks for your time today. Attached is a copy of the information we went through for your insurance renewal.\n\nPlease open it, check each answer, type over anything that’s wrong and fill in any blanks you can. Then tick the confirmation at the end, save the file and email it back to me.\n\nIt works in Adobe Acrobat Reader, Preview on a Mac, or most PDF apps on a phone. If anything is easier to explain by phone, just give me a call.';
   await makeDraft('rc',{to:[to],subject:'Please check your insurance renewal details - '+clientName(),body:body,includeSignature:true,attachments:[{content:u8b64(u8),filename:rcPdfName(),mimeType:'application/pdf'}]},'');
 });
+/* ---- reopen saved answers to edit (same renewal, no year roll-on) ---- */
+function mgSnap(){var d={};Object.keys(state.data).forEach(function(k){if(k!=='notes')d[k]=JSON.parse(JSON.stringify(state.data[k]));});
+  return {v:1,name:get('client','name')||'',seg:state.seg,ind:state.ind,lines:state.lines.slice(),data:d,ask:JSON.parse(JSON.stringify(state.ask||{})),actions:JSON.parse(JSON.stringify(state.actions||[])),site:JSON.parse(JSON.stringify(state.site||{items:[]})),auto:state.auto?JSON.parse(JSON.stringify(state.auto)):null,rid:state.rid,savedAt:Date.now()};}
+function mgEdit(snap,p){
+  photos.forEach(function(x){try{URL.revokeObjectURL(x.url);}catch(e){}});photos=[];photoMsg='';
+  var keep={};['preparedBy','preparedRole','preparedPhone','preparedEmail'].forEach(function(k){keep[k]=get('client',k);});
+  state=fresh();state.seg=snap.seg||'';state.ind=snap.ind||'';
+  state.lines=(snap.lines||[]).filter(function(l){return LINES[l];});
+  var d=snap.data||{};Object.keys(d).forEach(function(k){state.data[k]=JSON.parse(JSON.stringify(d[k]));});
+  state.data.client=state.data.client||{};Object.keys(keep).forEach(function(k){if(keep[k]&&!state.data.client[k])state.data.client[k]=keep[k];});
+  state.data.notes=state.data.notes||{};state.data.visit=state.data.visit||{date:TODAY};state.data.decl=state.data.decl||{date:TODAY};
+  if(snap.ask)state.ask=JSON.parse(JSON.stringify(snap.ask));if(snap.actions)state.actions=JSON.parse(JSON.stringify(snap.actions));
+  if(snap.site)state.site=JSON.parse(JSON.stringify(snap.site));if(snap.auto)state.auto=JSON.parse(JSON.stringify(snap.auto));
+  state.rid=snap.rid||'';state.bd=(p&&p.rid)||'';state.editing=true;resumed=false;
+  var sl=stepList(),at=sl.indexOf('client');state.i=at<0?1:at;save();render();
+}
+document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('[data-act="editclient"]');if(!b)return;e.preventDefault();e.stopPropagation();
+  var sn=loadClients().filter(function(c){return c.key===b.getAttribute('data-key');})[0];if(sn)mgEdit(sn,null);},true);
+(function(){var s=document.createElement('style');s.textContent='.clrow{display:flex;gap:6px;align-items:stretch;margin-bottom:6px}.clrow .clitem{flex:1;min-width:0;margin:0}.cledit{flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--accent);font:inherit;font-size:13px;font-weight:600;padding:0 12px;cursor:pointer}.cledit:hover{border-color:var(--accent)}';document.head.appendChild(s);})();
 
 function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())return '';
   var h='<div class="calcbox autop"><h3>From LINZ data</h3><div class="autorows">';
@@ -2310,7 +2332,7 @@ function clientListHTML(filter){
   var more=list.length>60?'<p class="small">Showing the first 60 of '+list.length+'. Search to narrow the list.</p>':'';
   list=list.slice(0,60);
   return '<div class="cl">'+list.map(function(c){
-    return '<button class="clitem" type="button" data-act="loadclient" data-key="'+esc(c.key)+'"><span><b>'+esc(c.name)+'</b><small>'+esc(SEG[c.seg]?SEG[c.seg].label:'')+' &middot; '+(c.lines||[]).length+' line'+((c.lines||[]).length===1?'':'s')+' &middot; '+(c.src==='import'?'imported ':'saved ')+esc(fmtDate(isoFromTs(c.savedAt)))+'</small></span><em>Use</em></button>';
+    return '<div class="clrow"><button class="clitem" type="button" data-act="loadclient" data-key="'+esc(c.key)+'"><span><b>'+esc(c.name)+'</b><small>'+esc(SEG[c.seg]?SEG[c.seg].label:'')+' &middot; '+(c.lines||[]).length+' line'+((c.lines||[]).length===1?'':'s')+' &middot; '+(c.src==='import'?'imported ':'saved ')+esc(fmtDate(isoFromTs(c.savedAt)))+'</small></span><em>Next renewal</em></button><button class="cledit" type="button" data-act="editclient" data-key="'+esc(c.key)+'">Edit these answers</button></div>';
   }).join('')+'</div>'+more;
 }
 function briefingHTML(){
@@ -2632,7 +2654,7 @@ async function bdSave(){
     if(pb)files.push({name:pdfName(),type:'application/pdf',blob:new Blob([pb],{type:'application/pdf'}),kind:'pdf'});
     photos.forEach(function(p){if(p.blob)files.push({name:p.name||'photo.jpg',type:p.blob.type||'image/jpeg',blob:p.blob,kind:p.id==='sitemap'?'aerial':'photo'});});
     var site='';if(a&&a.addr){var sp=[];if(a.parea)sp.push('land parcel '+a.parea.toLocaleString('en-NZ')+' m2');if(a.bsum)sp.push('building footprint '+a.bsum.toLocaleString('en-NZ')+' m2 in '+a.bcnt+' building'+(a.bcnt===1?'':'s'));(a.hz&&a.hz.rows||[]).forEach(function(r){if(r.s!=='err'&&r.s!=='nc')sp.push(r.l+': '+r.v);});if(a.hz&&a.hz.src&&a.hz.src.length)sp.push('sources: LINZ (CC BY 4.0), '+a.hz.src.join(', ').replace('GNS Science NZ Active Faults Database','GNS Science NZ Active Faults Database (1:250,000)')+'; indicative only');site=sp.join('; ');}
-    var out={rid:state.bd||'',mrid:state.rid,row:row,note:crmNote(),answers:bodyFor('uw',m).text,tasks:allTasks(),declOk:get('decl','ok')==='Yes',geo:a&&a.x?{x:a.x,y:a.y}:null,site:site,files:files};
+    var out={rid:state.bd||'',mrid:state.rid,row:row,note:crmNote(),answers:bodyFor('uw',m).text,tasks:allTasks(),declOk:get('decl','ok')==='Yes',geo:a&&a.x?{x:a.x,y:a.y}:null,site:site,files:files,mg:mgSnap()};
     var how=await window.BDMG.send(out);
     state.bdSaved=true;save();
     setStatus('bd','ok','Saved to '+esc(clientName())+' in Broker Desk'+(files.length?' with '+files.length+' file'+(files.length===1?'':'s'):'')+'.'+(how==='stored'?' Go back to Broker Desk to carry on.':''));
@@ -2640,6 +2662,15 @@ async function bdSave(){
   finally{busy=false;setBusy();render(true);}
 }
 function bdApply(p){
+  var same=function(st){return st&&st.data&&st.data.client&&((p.rid&&st.bd===p.rid)||(p.client&&String(st.data.client.name||'').trim().toLowerCase()===String(p.client).trim().toLowerCase()));};
+  /* an unfinished meeting for this client on this device: carry on with it */
+  if(same(state)&&state.i>0){state.bd=p.rid||state.bd||'';resumed=true;save();render();return;}
+  /* the answers saved with this client in Broker Desk, or on this device, for the same renewal: open them to edit */
+  var snap=p.mg&&p.mg.data?p.mg:null;
+  if(!snap){var nm=String(p.client||'').trim().toLowerCase();snap=loadClients().filter(function(c){return String(c.name||'').trim().toLowerCase()===nm&&c.data;})[0]||null;}
+  if(snap){var ren=snap.data&&snap.data.client&&snap.data.client.renewal;
+    if(!p.date||!ren||ren===p.date){mgEdit(snap,p);return;}
+    applyPrev(snap);state.bd=p.rid||'';var c0=state.data.client;if(p.date)c0.renewal=p.date;save();render();return;}
   photos.forEach(function(x){try{URL.revokeObjectURL(x.url);}catch(e){}});photos=[];
   state=fresh();state.bd=p.rid||'';resumed=false;
   var c=state.data.client;

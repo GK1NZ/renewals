@@ -336,7 +336,7 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.6.2 (27 Nov 2026)"};</script>
+<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.7 (27 Nov 2026)"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
 /*! @azure/msal-common v14.16.0 2024-12-12 */
@@ -4357,7 +4357,7 @@ X.uwAtts=async function(r){
 var MEET=null;
 X.startMeeting=function(id){
   var r=id?R.byId(id):null;
-  var p=r?{rid:id,client:r.client,contact:r.contact,phone:r.phone,email:r.email,address:r.address,date:r.date,insurer:r.insurer,prem:r.prem,type:r.type,industry:r.industry,at:Date.now()}:null;
+  var p=r?{rid:id,client:r.client,contact:r.contact,phone:r.phone,email:r.email,address:r.address,date:r.date,insurer:r.insurer,prem:r.prem,type:r.type,industry:r.industry,mg:r.mg||null,at:Date.now()}:null;
   if(MEET)closeMeet();
   var w=document.createElement("div");w.id="bdmeet";w.setAttribute("role","dialog");w.setAttribute("aria-label","Meeting Guide");
   w.innerHTML='<div class="mbar"><b>'+(r?"Meeting: "+esc(r.client):"Meeting Guide")+'</b>'+(window.__BD_DEMO?'':'<a class="btn sm" id="bdmeetnew" href="meeting-guide.html" target="_blank" rel="noopener">Open in a new tab</a>')+'<button class="btn sm pri" type="button" id="bdmeetx">Close</button></div><p class="note mhint" id="bdmeethint" hidden>If the guide doesn’t appear here, use Open in a new tab. It saves back to this client the same way.</p><iframe title="Meeting Guide" src="meeting-guide.html'+(window.__BD_DEMO?'#demo':'')+'"></iframe>';
@@ -4391,14 +4391,14 @@ X.importMeeting=async function(o){
     patch.psum=o.answers||r.psum||"";patch.dAnswersIn=R.today();
     patch.notes=(r.notes?r.notes+"\n\n":"")+noteBlock;
     patch.files=(r.files||[]).concat(att);
-    if(o.geo)patch.geo=o.geo;if(o.site)patch.site=o.site;
+    if(o.geo)patch.geo=o.geo;if(o.site)patch.site=o.site;if(o.mg)patch.mg=o.mg;
     if(R.STATUS.indexOf(r.status)<3&&r.status!==st&&!(r.status==="Ready to submit"&&!o.declOk)){patch.status=st;patch.next=next;patch.statusAt=new Date().toISOString()}
     patch.log=R.logAdd(r,line);
     await R.write(R.coll().doc(r.id).update(patch));
     X.lastImported=r.id;R.toast("Meeting saved to "+r.client);return r.id;
   }
   var id=await R.addRecord({client:row.client||"New client",type:row.type||"Commercial",industry:row.industry||"",contact:row.contact||"",phone:row.phone||"",email:row.email||"",address:row.address||"",date:row.date||"",lines:row.lines||"",insurer:row.insurer||"",prem:row.prem||"",appetite:row.appetite||"",excess:row.excess||"",followUp:row.followUp||"",status:st,next:next,notes:noteBlock,files:att});
-  if(id){var extra={psum:o.answers||"",dAnswersIn:R.today()};if(o.geo)extra.geo=o.geo;if(o.site)extra.site=o.site;try{await R.coll().doc(id).update(extra)}catch(e){}X.lastImported=id;R.toast("Meeting saved as a new client: "+(row.client||"New client"))}
+  if(id){var extra={psum:o.answers||"",dAnswersIn:R.today()};if(o.mg)extra.mg=o.mg;if(o.geo)extra.geo=o.geo;if(o.site)extra.site=o.site;try{await R.coll().doc(id).update(extra)}catch(e){}X.lastImported=id;R.toast("Meeting saved as a new client: "+(row.client||"New client"))}
   return id;
 };
 /* meetings finished in a separate tab wait in the shared store; pick them up when this tab is looked at again */
