@@ -700,7 +700,7 @@ var LINES={
   cyber:{name:'Cyber',desc:'Data held, controls and incident history',q:[
     Q('limit','Limit required','opt',{full:true,opts:['$500k','$1M','$2M','$5M','Other']}),
     Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
-    Q('records','Customer or personal records held','int'),
+    Q('records','Customer or personal records held','opt',{full:true,opts:['Under 1 million','1 million to 2 million','2 million or more']}),
     Q('cards','Process card payments?',YN),
     Q('mfa','Multi-factor authentication','opt',{full:true,opts:['All users','Admins only','None']}),
     Q('backup','Backups','opt',{full:true,opts:['Daily offline or immutable','Daily online','Less often']}),
