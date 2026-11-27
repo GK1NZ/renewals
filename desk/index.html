@@ -336,7 +336,7 @@ try{var lg=Object.getOwnPropertyDescriptor(P,"length");if(lg&&lg.get)Object.defi
 try{var no=function(){throw new Error("Not available in the demo")};Object.defineProperty(window,"indexedDB",{configurable:true,get:function(){return {open:no,deleteDatabase:no}}})}catch(e){}
 })();
 </script>
-<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.6 (27 Nov 2026)"};</script>
+<script>window.RR_CONFIG={appName:"Broker Desk",clientId:"",authority:"https://login.microsoftonline.com/common",version:"1.6.1 (27 Nov 2026)"};</script>
 <script>/*! @azure/msal-browser v3.28.0 2024-12-12 */
 "use strict";!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).msal={})}(this,(function(e){
 /*! @azure/msal-common v14.16.0 2024-12-12 */
@@ -1450,7 +1450,7 @@ async function uploadFiles(files){
 
 /* ---------- paste from capture app ---------- */
 function openSheet2(title,body,foot){$("p2title").textContent=title;$("p2body").innerHTML=body;$("p2foot").innerHTML=foot;$("sheet2").hidden=false}
-function closeSheet2(){$("sheet2").hidden=true}
+function closeSheet2(force){if(!force&&!$("sheet2").hidden&&window.__QGUARD&&window.__QGUARD())return false;$("sheet2").hidden=true;return true}
 function openPaste(){
   openSheet2("Paste from Meeting Guide",'<p class="note" style="margin:0 0 8px">In the Meeting Guide, open Send to Broker Desk and tap <b>Copy for Broker Desk</b>. Paste it here. If this client and renewal date are already in Broker Desk, the record is updated instead of duplicated.</p><textarea class="in" id="pastebox" style="min-height:200px;font-family:var(--mono);font-size:12px" aria-label="Pasted Meeting Guide data"></textarea><p class="note" id="pastemsg"></p>','<button class="btn pri" type="button" id="pastego">Add to Broker Desk</button>');
   setTimeout(function(){$("pastebox").focus()},30);
@@ -1467,7 +1467,7 @@ async function doPaste(){
   if(ex){
     var merged=Object.assign({},ex);FIELDS.forEach(function(k){if(p[k]!==undefined&&p[k]!==""&&["status","next"].indexOf(k)<0)merged[k]=p[k]});
     if(STATUS.indexOf(ex.status)<1){merged.status=p.status||ex.status;merged.next=p.next||ex.next}
-    merged.files=files;d=clean(merged);d.statusAt=merged.status===ex.status?ex.statusAt:new Date().toISOString();d.quotes=ex.quotes||[];d.log=ex.log||[];if(ex.rolled)d.rolled=true;
+    merged.files=files;d=clean(merged);Object.keys(ex).forEach(function(k){if(k!=="id"&&!(k in d))d[k]=ex[k]});d.statusAt=merged.status===ex.status?ex.statusAt:new Date().toISOString();d.quotes=ex.quotes||[];d.log=ex.log||[];if(ex.rolled)d.rolled=true;
     withLog(ex,d,"Updated from capture app");
     return write(coll.doc(ex.id).set(d)).then(function(){closeSheet2();toast("Updated "+d.client)},function(){});
   }
@@ -1544,7 +1544,7 @@ async function doPortalImport(){
     var mg=Object.assign({},ex);Object.keys(base).forEach(function(k){if(base[k]!==""&&base[k]!=null)mg[k]=base[k]});
     mg.status=["To start","Awaiting client details"].indexOf(ex.status)>-1?"Ready to submit":ex.status;mg.next="Review client's portal answers and prepare the submission";mg.followUp=today();
     mg.notes=(ex.notes?ex.notes+"\n\n":"")+note;
-    mg.dAnswersIn=today();mg.psum=r.summary||"";d=clean(mg);d.quotes=ex.quotes||[];d.files=ex.files||[];d.log=ex.log||[];if(ex.rolled)d.rolled=true;d.statusAt=d.status===ex.status?ex.statusAt:new Date().toISOString();
+    mg.dAnswersIn=today();mg.psum=r.summary||"";d=clean(mg);Object.keys(ex).forEach(function(k){if(k!=="id"&&!(k in d))d[k]=ex[k]});d.quotes=ex.quotes||[];d.files=ex.files||[];d.log=ex.log||[];if(ex.rolled)d.rolled=true;d.statusAt=d.status===ex.status?ex.statusAt:new Date().toISOString();
     d.portal=p;withLog(ex,d,"Client completed the portal form");
     return write(coll.doc(ex.id).set(d)).then(function(){closeSheet2();markRespDone();toast("Updated "+d.client+" from the client portal")},function(){});
   }
@@ -1589,6 +1589,16 @@ async function gzipB64(obj){
   return "-----BEGIN PREFILL DATA "+tag+"-----\n"+btoa(s).replace(/(.{72})/g,"$1\n")+"\n-----END PREFILL DATA-----";
 }
 var HASH_LINKS=!/claude\.ai/.test(PORTAL_URL);
+function encCode(){var A="0123456789ABCDEFGHJKMNPQRSTVWXYZ",r=crypto.getRandomValues(new Uint8Array(10)),o="";for(var i=0;i<10;i++)o+=A[r[i]&31];return o.slice(0,5)+"-"+o.slice(5)}
+function encB64u(u8){var s="";for(var i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+async function encLink(obj,days){
+  obj=Object.assign({},obj,{exp:Date.now()+(days||30)*864e5});
+  var code=encCode(),g=await gzipBytes(obj),z=g.tag==="R1G",salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),N=600000;
+  var km=await crypto.subtle.importKey("raw",new TextEncoder().encode(code.replace("-","")),"PBKDF2",false,["deriveKey"]);
+  var key=await crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:N,hash:"SHA-256"},km,{name:"AES-GCM",length:256},false,["encrypt"]);
+  var ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,g.bytes));
+  return {code:code,link:PORTAL_URL.replace(/#.*$/,"")+"#x="+(z?1:2)+"."+N+"."+encB64u(salt)+"."+encB64u(iv)+"."+encB64u(ct)};
+}
 async function prefillLink(obj){
   var g=await gzipBytes(obj),s="";for(var i=0;i<g.bytes.length;i+=8192)s+=String.fromCharCode.apply(null,g.bytes.subarray(i,i+8192));
   return PORTAL_URL.replace(/#.*$/,"")+"#p="+(g.tag==="R1G"?"G":"J")+"."+btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -1597,13 +1607,17 @@ var sendCtx=null;
 async function openSend(id){
   var r=(id||editing)?byId[id||editing]:null;if(!r)return;
   if(!PORTAL_URL){toast("Add your client form web address in Settings first.");return}
-  var code=HASH_LINKS?"":await gzipB64(prefillObject(r)),plink=HASH_LINKS?await prefillLink(prefillObject(r)):"";
+  var code=HASH_LINKS?"":await gzipB64(prefillObject(r)),enc=null,plink="";
+  if(HASH_LINKS){try{enc=await encLink(prefillObject(r),30);plink=enc.link}catch(e){toast("This browser can't create a protected link. Try Chrome, Edge or Safari.");return}}
   var first=(r.contact||"").trim().split(/\s+/)[0];
   var tv={name:first||"there",client:r.client||"","renewal date":r.date?fmtDate(nextYearDate(r.date)):"",link:plink,phone:CFG.phone,signature:SIGN};
   var subj=tplSubj("form",tv);
-  var body=HASH_LINKS?tplMerge(tplGet("form").b,tv):"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\n1. Open the form: "+PORTAL_URL+"\n2. On the first screen, open \"Did your broker send you a pre-fill code?\" and paste in the code below. It fills in what we held at your last review so you only need to check and update it.\n3. At the end it will ask you to copy your answers into an email back to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+code+"\n\n"+SIGN;
-  sendCtx={r:r,subj:subj,body:body};
-  openSheet2("Send renewal information to client",'<p class="note" style="margin:0 0 8px">'+(r.portal?"Includes the answers last collected from this client.":"This client has not used the form yet, so the code carries the details held in Broker Desk.")+" "+(HASH_LINKS?"The link opens the form with these details already filled in.":"They paste the code into the form's first screen.")+"</p><div class=\"full\"><label for=\"sendto\">To</label><input class=\"in\" id=\"sendto\" type=\"email\" value=\""+esc(r.email||"")+"\"></div><div class=\"full\"><label for=\"sendsub\">Subject</label><input class=\"in\" id=\"sendsub\" value=\""+esc(subj)+"\"></div><div class=\"full\"><label for=\"sendbody\">Email</label><textarea class=\"in\" id=\"sendbody\" style=\"min-height:260px;font-family:var(--mono);font-size:12px\"></textarea></div><p class=\"note\" id=\"sendmsg\"></p>",(mcpOutlook?'<button class="btn pri" type="button" id="senddraft">Create email draft</button>':'')+'<button class="btn'+(mcpOutlook?'':' pri')+'" type="button" id="sendcopy">Copy email</button>');
+  var codeLine="You\u2019ll need the code I give you by phone or text to open it. It isn\u2019t in this email, to keep your details safe.";
+  var body=HASH_LINKS?(function(){var b=tplMerge(tplGet("form").b,tv);if(!/\bcode\b/i.test(tplGet("form").b))b=b.replace(plink,plink+"\n\n"+codeLine);return b})():"Hi "+(first||"there")+",\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\n1. Open the form: "+PORTAL_URL+"\n2. On the first screen, open \"Did your broker send you a pre-fill code?\" and paste in the code below. It fills in what we held at your last review so you only need to check and update it.\n3. At the end it will ask you to copy your answers into an email back to me.\n\nIf you get stuck, call me on "+CFG.phone+".\n\n"+code+"\n\n"+SIGN;
+  sendCtx={r:r,subj:subj,body:body,code:enc&&enc.code};
+  var ph=String(r.phone||"").replace(/[^\d+]/g,"");
+  var codeBox=enc?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 6px"><span class="note">Code for the client</span><b id="sendcode" style="font-family:var(--mono);font-size:22px;letter-spacing:.08em;background:color-mix(in srgb,var(--accent) 14%,var(--surface));padding:3px 10px;border-radius:8px">'+esc(enc.code)+'</b>'+(ph?'<a class="btn sm" href="sms:'+esc(ph)+'?&body='+encodeURIComponent("Your code to open your insurance renewal form: "+enc.code)+'">Text the code</a>':'')+'</div><p class="note" style="margin:0 0 10px">The link is locked with this code. Give it to the client by phone or text, not in the email. It isn\u2019t saved anywhere, so note it now or open this again for a new link and code. The link works for 30 days.</p>':"";
+  openSheet2("Send renewal information to client",codeBox+'<p class="note" style="margin:0 0 8px">'+(r.portal?"Includes the answers last collected from this client.":"This client has not used the form yet, so the link carries the details held in Broker Desk.")+" "+(HASH_LINKS?"The link opens the form with these details filled in once the client enters the code.":"They paste the code into the form's first screen.")+"</p><div class=\"full\"><label for=\"sendto\">To</label><input class=\"in\" id=\"sendto\" type=\"email\" value=\""+esc(r.email||"")+"\"></div><div class=\"full\"><label for=\"sendsub\">Subject</label><input class=\"in\" id=\"sendsub\" value=\""+esc(subj)+"\"></div><div class=\"full\"><label for=\"sendbody\">Email</label><textarea class=\"in\" id=\"sendbody\" style=\"min-height:260px;font-family:var(--mono);font-size:12px\"></textarea></div><p class=\"note\" id=\"sendmsg\"></p>",(mcpOutlook?'<button class="btn pri" type="button" id="senddraft">Create email draft</button>':'')+'<button class="btn'+(mcpOutlook?'':' pri')+'" type="button" id="sendcopy">Copy email</button>');
   $("sendbody").value=body;
 }
 function markSent(how){
@@ -2315,7 +2329,7 @@ $("bulk").addEventListener("click",function(e){
     withLog(r,d);n++;return coll.doc(id).set(d)})});
   p.then(function(){toast("Updated "+n+" renewal"+(n>1?"s":""));sel={};render()},function(){toast("Stopped after "+n+" of "+ids.length+".")});
 });
-$("close").addEventListener("click",closeSheet);$("close2").addEventListener("click",closeSheet2);
+$("close").addEventListener("click",closeSheet);$("close2").addEventListener("click",function(){closeSheet2()});
 $("sheet").addEventListener("mousedown",function(e){if(e.target===$("sheet"))closeSheet()});
 $("sheet2").addEventListener("mousedown",function(e){if(e.target===$("sheet2"))closeSheet2()});
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){if(!$("sheet2").hidden)closeSheet2();else if(!$("sheet").hidden)closeSheet()}});
@@ -2469,7 +2483,7 @@ window.__R=(function(){var L={},D={};return{
 var TPL={},tplDoc=null,tplLoaded=false,TPE=null,TPF=null;
 var TPL_DEF={
   form:{n:"Renewal form request",d:"Sent to the client with the link to their renewal form.",s:"Your insurance renewal - {renewal date} - {client}",
-    b:"Hi {name},\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\nOpen your form here (it already has your details filled in, so you only need to check and update them):\n{link}\n\nWhen you reach the end, follow the last step to send your answers to me.\n\nIf you get stuck, call me on {phone}.\n\n{signature}",
+    b:"Hi {name},\n\nYour insurance renewal is coming up. To save you a meeting, please check and update your details in our short online form. It takes about 15 minutes, saves as you go, and has guides to help you set your sums insured.\n\nOpen your form here (it already has your details filled in, so you only need to check and update them):\n{link}\n\nYou\u2019ll need the code I give you by phone or text to open it. It isn\u2019t in this email, to keep your details safe.\n\nWhen you reach the end, follow the last step to send your answers to me.\n\nIf you get stuck, call me on {phone}.\n\n{signature}",
     f:["name","client","renewal date","link","phone","signature"],req:["link"]},
   confirm:{n:"Confirm answers with client",d:"Sent after the client completes the form or a meeting, so they can confirm their details.",s:"Please confirm your renewal details - {client}",b:CF_TPL,
     f:["name","client","answers","message","signature"],req:["answers"]},
@@ -3495,7 +3509,8 @@ function open(id,view){
   if(!qs.length)qs=[newQ()];
   qs.forEach(function(q){qvOf(q);if(!("fee" in q.qv))q.qv.fee=DFEE});
   QS={id:id,T:T,qs:qs,lay:false,view:view||"grid",ret:null,mail:clone(r.qmail||{}),msg:"",chart:null};
-  libLoad();draw();
+  QS.lost=!r.qt&&(r.quotes||[]).some(function(q){return q.qv&&Object.keys(q.qv.v||{}).length});
+  libLoad();draw();QS.snap=qSnap();
 }
 var DFEE="";
 function newQ(){return {ins:"",st:"Quoted",reply:"",exp:"",rec:false,cond:"",sent:today(),qv:{v:{},x:{},e:{},fee:DFEE}}}
@@ -3554,6 +3569,7 @@ function qStrip(){
 function drawGrid(r){
   var T=QS.T,qs=QS.qs,n=qs.length,cs=n+2,h="";
   var multi=T.locs.length>1;
+  if(QS.lost)h+=qLostBanner();
   h+='<div id="qroot"><p class="note" style="margin:0 0 6px">Enter each insurer\'s premiums ex GST. GST and totals are worked out for you.</p><details class="qtips"><summary>Tips: paste from Excel, not offered, comparison rules</summary><p class="note" style="margin:6px 0 0">Copy a column of premiums in Excel and paste it into an insurer\'s first box. Enter moves down a column, Tab moves across. Type <b>N/O</b> (or press the N/O button) when an insurer did not offer a line. An insurer who did not offer everything is left off the client comparison automatically; change that under Dates and comparison settings.</p></details>';
   h+='<div class="qstrip" id="qstrip"></div>';
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"><button class="btn sm" type="button" data-act="addq">Add insurer</button><button class="btn sm" type="button" data-act="lay">'+(QS.lay?'Done editing layout':'Edit layout')+'</button><button class="btn sm" type="button" data-act="lib">Endorsement library</button></div>';
@@ -3744,6 +3760,52 @@ function prepared(){
   });
   return qs;
 }
+function qSnap(){try{return JSON.stringify({q:QS.qs,t:QS.T,m:QS.mail})}catch(e){return ""}}
+function qDirty(){return !!(QS&&QS.snap&&qSnap()!==QS.snap)}
+window.__QGUARD=function(){
+  if(!QS||!document.querySelector("#sheet2 #qroot, #sheet2 #qcmp, #sheet2 #qlib")||!qDirty())return false;
+  var b=$("qguard");
+  if(!b){b=document.createElement("div");b.id="qguard";b.setAttribute("role","alertdialog");b.style.cssText="position:sticky;top:0;z-index:6;background:var(--surface);border:2px solid var(--accent);border-radius:10px;padding:10px 12px;margin:0 0 10px;box-shadow:0 4px 18px rgba(0,0,0,.12)";
+    b.innerHTML='<p style="margin:0 0 8px"><b>You have unsaved changes to these quotes.</b> Save them before closing?</p><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn pri" type="button" id="qg_save">Save and close</button><button class="btn" type="button" id="qg_drop">Close without saving</button><button class="btn" type="button" id="qg_keep">Keep editing</button></div>';
+    var host=$("qroot")||$("qcmp")||$("qlib");host.parentNode.insertBefore(b,host)}
+  b.scrollIntoView({block:"nearest"});var sv=$("qg_save");if(sv)sv.focus();return true;
+};
+window.addEventListener("beforeunload",function(e){if(window.__QGUARD&&QS&&qDirty()&&!$("sheet2").hidden){e.preventDefault();e.returnValue=""}});
+document.addEventListener("click",function(e){var t=e.target;if(!t||!t.id)return;
+  if(t.id==="qg_keep"){var b=$("qguard");if(b)b.remove();return}
+  if(t.id==="qg_drop"){QS.snap=qSnap();R.closeSheet2(true);return}
+  if(t.id==="qg_save"){QS.closeAfter=true;doSave(false);return}
+});
+function qLostBanner(){
+  return '<div id="qlost" style="border:2px solid #b58100;background:color-mix(in srgb,#f5c542 18%,var(--surface));border-radius:10px;padding:10px 12px;margin:0 0 12px"><p style="margin:0 0 6px"><b>The layout of this quote sheet is missing, so the insurers\u2019 figures can\u2019t be shown.</b> The figures are still stored. Don\u2019t press Save until they are back.</p>'+
+    '<p class="note" style="margin:0 0 8px">Best: restore the sheet from a backup file made before the figures went missing. Otherwise, show the figures under temporary line names and rename them yourself.</p>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap"><label class="btn pri" for="qrfile" style="cursor:pointer">Restore from a backup file</label><input type="file" id="qrfile" accept=".json,application/json" hidden><button class="btn" type="button" id="qrgen">Show figures with temporary names</button></div><div id="qrmsg" role="status" style="margin-top:8px"></div></div>';
+}
+function qFind(bk,id,name){
+  var cols=bk&&bk.cols||{},col=cols.renewals||cols.renewal||{},list=Array.isArray(col)?col:Object.keys(col).map(function(k){var d=col[k];if(d&&typeof d==="object"&&!d.id)d=Object.assign({id:k},d);return d});
+  return list.filter(function(d){return d&&d.id===id&&d.qt})[0]||list.filter(function(d){return d&&d.qt&&String(d.client||"").trim().toLowerCase()===String(name||"").trim().toLowerCase()})[0]||null;
+}
+var QREC=null;
+document.addEventListener("change",function(e){var t=e.target;if(!t||t.id!=="qrfile"||!t.files||!t.files[0])return;var f=t.files[0],m=$("qrmsg"),r=getR(QS.id);
+  f.text().then(function(txt){var bk;try{bk=JSON.parse(txt)}catch(x){m.textContent="That isn't a Broker Desk backup file.";return}
+    var d=qFind(bk,QS.id,r&&r.client);if(!d){m.textContent="This backup doesn't have a quote sheet for "+(r?r.client:"this client")+". Try an older backup.";return}
+    var n=(d.quotes||[]).length,sv=bk.saved?new Date(bk.saved).toLocaleString():"an unknown date",tots=(d.quotes||[]).map(function(q){var c=calc(q,d.qt);return (q.ins||"Insurer")+(c.any?" "+mC(c.tot):"")}).join(", ");
+    QREC=d;m.innerHTML='<p style="margin:0 0 6px">Backup from <b>'+esc(sv)+'</b>: '+n+' insurer'+(n===1?"":"s")+(tots?" ("+esc(tots)+")":"")+'.</p><button class="btn pri" type="button" id="qrdo">Restore these quotes</button>';
+  });t.value="";});
+document.addEventListener("click",function(e){var t=e.target;if(!t||!QS)return;
+  if(t.id==="qrdo"&&QREC){var r=getR(QS.id);if(!r)return;var d=QREC;QREC=null;
+    var upd={qt:d.qt,quotes:d.quotes||[],log:R.logAdd(r,"Quote sheet restored from a backup"),updated:new Date().toISOString()};if(d.qmail)upd.qmail=d.qmail;if(d.fee!=null&&d.fee!=="")upd.fee=d.fee;
+    R.coll().doc(r.id).update(upd).then(function(){QS.snap="";R.toast("Quotes restored");setTimeout(function(){open(r.id)},200)},function(){var m=$("qrmsg");if(m)m.textContent="Couldn't save. Try again in a moment."});return}
+  if(t.id==="qrgen"){var T={locs:[]},L={};
+    var locOf=function(id){if(!L[id]){L[id]={id:id,name:"",classes:[{id:"rc"+uid(),name:"Recovered figures",ek:"ot",lines:[],xs:[]}]};T.locs.push(L[id])}return L[id]};
+    var seenL={},seenC={};
+    QS.qs.forEach(function(q){var v=(q.qv&&q.qv.v)||{},x=(q.qv&&q.qv.x)||{};
+      Object.keys(v).forEach(function(k){var i=k.indexOf("."),li=k.slice(0,i),lid=k.slice(i+1),loc=locOf(li);if(seenL[k])return;seenL[k]=1;loc.classes[0].lines.push({id:lid,label:"Line "+(loc.classes[0].lines.length+1)+" (rename)",kind:"p",si:""})});
+      Object.keys(x).forEach(function(k){var a=k.split(".");if(a.length<3)return;var loc=locOf(a[0]),ck=a[0]+"."+a[1];if(!seenC[ck]){seenC[ck]={id:a[1],name:"Excesses (rename)",ek:"ot",lines:[],xs:[]};loc.classes.push(seenC[ck])}var c=seenC[ck];if(!c.xs.some(function(z){return z.id===a[2]}))c.xs.push({id:a[2],label:"Excess "+(c.xs.length+1),t:"fix"})});
+    });
+    if(!T.locs.length){var m=$("qrmsg");if(m)m.textContent="No figures were found to recover.";return}
+    QS.T=T;QS.lost=false;draw();R.toast("Figures shown under temporary names. Rename the lines in Edit layout, then Save.");return}
+});
 function doSave(thenCmp){
   var r=getR(QS.id),m=$("qmsg");if(!r)return;
   if(!R.coll()||!R.canWrite()){if(m)m.textContent="Saving isn't available in this view.";return}
@@ -3757,7 +3819,7 @@ function doSave(thenCmp){
   var waiting=qs.some(function(q){return q.st==="Requested"});
   if(r.status==="Out with underwriters"&&nq&&!waiting){upd.status="Quotes in, to review";upd.statusAt=new Date().toISOString();upd.next="Review the comparison and send it to the client";upd.followUp=addDays(today(),2)}
   QS.qs=clone(qs);QS.qs.forEach(qvOf);
-  R.coll().doc(r.id).update(upd).then(function(){R.toast("Quotes saved");if(thenCmp){QS.view="cmp";draw()}},function(){var mm=$("qmsg");if(mm)mm.textContent="Couldn't save. Try again in a moment."});
+  R.coll().doc(r.id).update(upd).then(function(){QS.snap=qSnap();QS.lost=false;R.toast("Quotes saved");if(QS.closeAfter){QS.closeAfter=false;R.closeSheet2(true);return}if(thenCmp){QS.view="cmp";draw()}},function(){var mm=$("qmsg");if(mm)mm.textContent="Couldn't save. Try again in a moment."});
 }
 
 /* ---------- endorsement library view ---------- */
@@ -3960,7 +4022,7 @@ function doAccept(){
 }
 function cmpClick(a,el){
   var b=QS.chart&&QS.chart.b;
-  if(a==="tpl"){R.closeSheet2();R.tplList();return}
+  if(a==="tpl"){if(R.closeSheet2()===false)return;R.tplList();return}
   if(a==="back"){QS.view="grid";draw()}
   else if(a==="mail")doMail();
   else if(a==="accept")doAccept();
