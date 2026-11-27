@@ -1624,6 +1624,67 @@ function alertCo(m){CO.msg=m;CO.err=true;var el=document.querySelector('.coreg')
  '.cowarn{background:var(--bad-soft);color:var(--ink);border-radius:8px;padding:8px 10px;margin:0 0 8px;font-size:14px}.cochk{display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0}.cohow{margin-top:8px;font-size:13.5px}.cohow summary{cursor:pointer;color:var(--accent)}.cohow ol{padding-left:18px;margin:6px 0 0;line-height:1.5}'+
  '.cosmall{background:none;border:0;padding:0;margin-top:8px;font:inherit;font-size:12.5px;color:var(--muted);text-decoration:underline;cursor:pointer}';document.head.appendChild(s);})();
 
+/* rconfirm */
+/* ---- Ask the client to check the details remotely (phone or video meetings) ---- */
+var RC={code:'',link:'',busy:false,made:0};
+function rcLive(){return location.protocol==='https:'||location.hostname==='localhost';}
+function rcB64u(u8){var s='';for(var i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function rcNewCode(){var A='0123456789ABCDEFGHJKMNPQRSTVWXYZ',r=crypto.getRandomValues(new Uint8Array(10)),o='';for(var i=0;i<10;i++)o+=A[r[i]&31];return o.slice(0,5)+'-'+o.slice(5);}
+function rcPayload(){
+  var c=JSON.parse(JSON.stringify(state.data.client||{}));['preparedBy','preparedRole','preparedPhone','preparedEmail'].forEach(function(k){delete c[k];});
+  var l={};onLines().forEach(function(id){var d=state.data['line:'+id];if(d)l[id]=JSON.parse(JSON.stringify(d));});
+  var pf=(window.BDMG&&window.BDMG.profile)||{};
+  return {v:1,seg:state.seg,ind:state.ind||'',indName:state.seg==='commercial'&&IND[state.ind]?IND[state.ind].name:'',lines:onLines(),c:c,p:JSON.parse(JSON.stringify(state.data.profile||{})),l:l,
+    b:{name:get('client','preparedBy')||pf.name||'',role:get('client','preparedRole')||pf.role||'',firm:pf.firm||'',fsp:pf.fsp||'',email:get('client','preparedEmail')||pf.email||'',phone:get('client','preparedPhone')||pf.mobile||pf.phone||''},
+    exp:Date.now()+14*864e5};
+}
+async function rcMake(){
+  var code=rcNewCode(),raw=new TextEncoder().encode(JSON.stringify(rcPayload())),z=true,bytes=raw;
+  try{bytes=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());}catch(e){z=false;bytes=raw;}
+  var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),N=600000;
+  var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(code.replace('-','')),'PBKDF2',false,['deriveKey']);
+  var key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:N,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']);
+  var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,bytes));
+  var base=new URL('client-form/index.html',location.href).href.replace(/[?#].*$/,'');
+  return {code:code,link:base+'#x='+(z?1:2)+'.'+N+'.'+rcB64u(salt)+'.'+rcB64u(iv)+'.'+rcB64u(ct)};
+}
+function rcFirst(){var n=String(get('client','contact')||'').trim().split(/\s+/)[0];return n||'there';}
+function rcPanel(){
+  var em=String(get('client','email')||'').trim(),ph=String(get('client','phone')||'').replace(/[^\d+]/g,'');
+  var h='<section class="coreg rcbox"><div class="coreg-h"><b>Meeting by phone or video? Ask the client to check the details</b><span class="hint" style="margin:2px 0 0">Sends what you recorded about the client, their business and their covers. Your visit notes, follow-ups, photos and site look-ups are not included.</span></div>';
+  if(rcLive()){
+    if(!RC.link){h+='<div class="btnrow" style="margin:6px 0 0"><button class="btn primary" type="button" id="rc_make"'+(RC.busy?' disabled':'')+'>'+(RC.busy?'Creating…':'Create a protected link')+'</button></div><p class="hint" style="margin:6px 0 0">The client opens the link, enters a code you give them by phone or text, checks and corrects their details, then sends them back to you. The details are locked with the code, so the link on its own is no use to anyone else.</p>';}
+    else{
+      h+='<div class="rccode"><span>Code for the client</span><b>'+esc(RC.code)+'</b></div><p class="hint" style="margin:6px 0 8px">Read it out now or text it. Don’t put it in the same email as the link. The code isn’t saved anywhere, so if you lose it, create a new link. The link works for 14 days.</p>'+
+        '<div class="btnrow" style="margin:0"><button class="btn primary" type="button" id="rc_mail"'+(busy?' disabled':'')+'>Email the link'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_copy">Copy the link</button>'+(ph?'<a class="btn" href="sms:'+esc(ph)+'?&body='+encodeURIComponent('Your code to open your insurance renewal details: '+RC.code)+'">Text the code</a>':'')+'<button class="btn" type="button" id="rc_new">New link</button></div>';
+    }
+  }else{h+='<p class="hint" style="margin:6px 0 0">Protected links work when the Meeting Guide is opened from the website, not from a folder on this device. You can still email or copy the details below.</p>';}
+  h+='<details class="cohow"'+(rcLive()?'':' open')+'><summary>Other ways to send the details</summary><p class="hint" style="margin:6px 0">These put the client’s details straight into an email, unprotected. Fine for many clients, but the protected link is safer.</p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_plain"'+(busy?' disabled':'')+'>Email the details'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_text">Copy the details</button></div></details>';
+  h+='<div id="status-rc" role="status">'+statusHTML('rc')+'</div></section>';
+  return h;
+}
+function rcRedraw(){var el=document.querySelector('.rcbox');if(!el)return;var w=document.createElement('div');w.innerHTML=rcPanel();if(w.firstChild)el.replaceWith(w.firstChild);}
+function rcCopy(txt,ok){var done=function(){setStatus('rc','ok',ok);};try{navigator.clipboard.writeText(txt).then(done,function(){rcManual(txt);});}catch(e){rcManual(txt);}}
+function rcManual(txt){setStatus('rc','info','Copy this:<textarea class="in" readonly style="width:100%;min-height:90px;margin-top:6px" onfocus="this.select()">'+esc(txt)+'</textarea>');}
+function rcEmailOk(){var em=String(get('client','email')||'').trim();if(!validEmail(em)){setStatus('rc','bad','Add the client’s email on the Client details step first, or use Copy.');return '';}return em;}
+document.addEventListener('click',async function(e){
+  var t=e.target;if(!t||!t.id||t.id.indexOf('rc_')!==0)return;
+  if(t.id==='rc_make'||t.id==='rc_new'){
+    if(RC.busy)return;RC.busy=true;RC.link='';RC.code='';rcRedraw();
+    try{var r=await rcMake();RC.code=r.code;RC.link=r.link;RC.made=Date.now();statuses.rc=null;}
+    catch(err){setStatus('rc','bad','This browser could not create a protected link. Try Chrome, Edge or Safari, or use Email the details.');}
+    RC.busy=false;rcRedraw();return;
+  }
+  if(t.id==='rc_copy'){rcCopy(RC.link,'Link copied. Paste it into an email to the client, and give them the code separately.');return;}
+  if(t.id==='rc_text'){rcCopy(bodyFor('client',buildModel()).text,'Details copied. Paste them into an email and ask the client to reply with any changes.');return;}
+  if(t.id==='rc_mail'){var to=rcEmailOk();if(!to)return;var nm=clientName();
+    var body='Hi '+rcFirst()+',\n\nThanks for your time today. I’ve put the information we went through into a secure form so you can check it.\n\n1. Open this link:\n'+RC.link+'\n\n2. Enter the code I gave you by phone or text. It isn’t in this email, to keep your details safe.\n\n3. Check each section, change anything that’s wrong or missing, then follow the last step to send it back to me.\n\nThe link works for 14 days. If you have any questions, give me a call.';
+    await makeDraft('rc',{to:[to],subject:'Please check your insurance renewal details'+(nm&&nm!=='Client'?' - '+nm:''),body:body,includeSignature:true},'');return;}
+  if(t.id==='rc_plain'){var to2=rcEmailOk();if(!to2)return;var m=buildModel(),b=bodyFor('client',m);
+    await makeDraft('rc',{to:[to2],subject:'Your renewal information: '+clientName(),body:b.text,htmlBody:b.html,includeSignature:true},'');return;}
+});
+(function(){var s=document.createElement('style');s.textContent='.rccode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 0}.rccode span{font-size:13px;color:var(--muted)}.rccode b{font-family:var(--f-mono);font-size:24px;letter-spacing:.08em;background:var(--accent-soft);color:var(--ink);padding:4px 12px;border-radius:8px}.rcbox .btnrow{flex-wrap:wrap}.rcbox .btnrow .btn{flex:0 1 auto;width:auto}';document.head.appendChild(s);})();
+
 function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())return '';
   var h='<div class="calcbox autop"><h3>From LINZ data</h3><div class="autorows">';
   if(a.live&&!a.parea&&a.hz&&a.hz.busy)h+='<div><span>Land parcel and buildings</span><b>Looking up\u2026</b></div>';
@@ -2428,7 +2489,7 @@ async function saveTemplate(sg){
 }
 
 /* ---------- visit, follow-ups, confirmation, CRM ---------- */
-function visitView(){return '<h1 class="st">Visit record</h1><p class="lead">What was discussed and advised. This is your file note and does not go to the client or underwriter.</p>'+fieldsHTML('visit',visitQs());}
+function visitView(){return '<h1 class="st">Visit record</h1><p class="lead">What was discussed and advised. This is your file note and does not go to the client or underwriter.</p>'+rcPanel()+fieldsHTML('visit',visitQs());}
 function ownerDefault(){return get('client','preparedBy')||'Me';}
 function allTasks(){
   var t=[];
@@ -2450,7 +2511,7 @@ function actionsView(){
   return h;
 }
 function declView(){
-  return '<h1 class="st">Client confirmation</h1><p class="lead">Ask the client to check the information, then confirm and sign with a finger. This goes into the underwriter submission.</p>'+fieldsHTML('decl',DECL)+
+  return '<h1 class="st">Client confirmation</h1><p class="lead">Ask the client to check the information, then confirm and sign with a finger. This goes into the underwriter submission.</p><p class="hint">Not with the client in person? Go back to <b>Visit record</b> and use <b>Ask the client to check the details</b>. They confirm in the form they send back.</p>'+fieldsHTML('decl',DECL)+
     '<h2 class="subh">Signature</h2><div class="sigwrap"><canvas id="sigpad" aria-label="Signature pad"></canvas></div><p style="margin:8px 0 0"><button class="linkbtn" type="button" data-act="sigclear">Clear signature</button></p>';
 }
 function initSig(){
@@ -2538,7 +2599,7 @@ async function registerRow(){
 function crmView(){
   ensureRid();
   var tk=allTasks(),note=crmNote(),gm=caps.mcp;
-  var h='<h1 class="st">Save to Broker Desk</h1><p class="lead">Puts everything from this meeting on '+esc(clientName())+'\u2019s record: the answers, the submission PDF, your photos, the follow-ups and the next step.</p>';
+  var h='<h1 class="st">Save to Broker Desk</h1><p class="lead">'+(state.bd?'Puts everything from this meeting on '+esc(clientName())+'\u2019s record':'Adds '+esc(clientName())+' to Broker Desk as a new client, or updates the client with exactly the same name if there is one. It saves')+': the answers, the submission PDF, your photos, the follow-ups and the next step.</p>';
   h+='<div class="send"><div class="btnrow"><button class="btn primary" type="button" data-act="bdsave"'+(busy?' disabled':'')+'>Save to Broker Desk</button>'+(state.bdSaved?'<button class="btn" type="button" data-act="bdback">Back to Broker Desk</button>':'')+'</div><div id="status-bd" role="status" aria-live="polite">'+statusHTML('bd')+'</div></div>';
   h+='<section class="rv"><h3>What gets logged</h3><dl><div class="row"><dt>Activity note</dt><dd>Visit on '+esc(get('visit','date')?fmtDate(get('visit','date')):'today')+'</dd></div><div class="row"><dt>Tasks</dt><dd>'+tk.length+'</dd></div><div class="row"><dt>Next follow-up</dt><dd>'+esc(get('visit','followup')?fmtDate(get('visit','followup')):'Not set')+'</dd></div><div class="row"><dt>Renewal date</dt><dd>'+esc(get('client','renewal')?fmtDate(get('client','renewal')):'Not set')+'</dd></div></dl></section>';
   h+='<div class="send"><h2>Activity note</h2><textarea class="notebox" id="crmta" readonly>'+esc(note)+'</textarea><div class="btnrow"><button class="btn" type="button" data-act="crmcopy">Copy note</button>'+(caps.dl?'<button class="btn" type="button" data-act="tasks">Save tasks CSV</button>':'')+'</div></div>';
@@ -2655,7 +2716,7 @@ function lineNames(){return onLines().map(function(l){return LINES[l].name;}).jo
 
 function sectionsFor(kind,m){
   if(kind==='internal')return groupRows(m.rows);
-  if(kind==='client')return groupRows(m.rows.filter(function(r){return ['notes','visit','decl','ask'].indexOf(r.scope)<0;}));
+  if(kind==='client')return groupRows(m.rows.filter(function(r){return r.scope==='client'||r.scope==='profile'||String(r.scope).indexOf('line:')===0;}));
   /* underwriter */
   var c=function(id){return get('client',id);}, p=function(id){return get('profile',id);};
   var sum=[];

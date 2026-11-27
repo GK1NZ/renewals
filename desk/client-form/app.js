@@ -305,7 +305,29 @@ function doSend(){
   fetch(SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({v:1,id:SEND_ID,name:S.c.name||'',email:S.c.email||'',summary:summaryText(),code:packed})})
    .then(function(r){return r.json()}).then(function(j){if(!j||!j.ok)throw new Error('x');SEND_ST='ok'}).catch(function(){SEND_ST='err'}).then(function(){render()});
 }
+/* ---------- protected links: #x=<z>.<iterations>.<salt>.<iv>.<data>, unlocked with a code given separately ---------- */
+var ENC=null,encMsg='',encBusy=false;
+(function(){var mx=/^#x=([12])\.(\d{4,7})\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(location.hash||'');if(mx)ENC={z:mx[1]==='1',n:Math.min(2000000,Number(mx[2])),s:mx[3],iv:mx[4],ct:mx[5]};})();
+function encU8(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return b64u8(s)}
+function encGate(){return '<div class="card"><h2>Check your renewal information</h2><p class="lead">Your broker has sent your details for you to check. Enter the code they gave you by phone or text message. The code isn’t in the email, which keeps your details protected.</p><div class="f"><label class="lab" for="enccode">Code</label><input class="in" id="enccode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" style="max-width:240px;text-transform:uppercase;letter-spacing:.06em"></div>'+(encMsg?'<p class="err" role="alert">'+esc(encMsg)+'</p>':'')+'<div class="nav"><span></span><button class="btn pri" type="button" id="encgo"'+(encBusy?' disabled':'')+'>'+(encBusy?'Opening…':'Open my details')+'</button></div><p class="hint">No code, or it doesn’t work? Contact your broker for a new one.</p></div>'}
+async function encOpen(code){
+  code=String(code||'').toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/O/g,'0').replace(/[IL]/g,'1');
+  if(code.length!==10)throw new Error('code');
+  var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(code),'PBKDF2',false,['deriveKey']);
+  var key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:encU8(ENC.s),iterations:ENC.n,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+  var pt;try{pt=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:encU8(ENC.iv)},key,encU8(ENC.ct)))}catch(e){throw new Error('code')}
+  var txt=ENC.z?await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(pt);
+  var o=JSON.parse(txt);if(o.exp&&Date.now()>o.exp)throw new Error('exp');return o;
+}
+function encTry(){
+  var el=$('enccode');if(!el||encBusy)return;var v=el.value;encBusy=true;encMsg='';render();
+  encOpen(v).then(function(o){applyPrefill(o);ENC=null;packed=null;S.step=1;save();try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}encBusy=false;render()},
+    function(er){encBusy=false;encMsg=er&&er.message==='code'?'That code didn’t work. Check it and try again. It has 10 letters and numbers.':er&&er.message==='exp'?'This link has expired. Ask your broker for a new one.':'This browser couldn’t open your details. Try Chrome, Edge or Safari.';render();var e2=$('enccode');if(e2){e2.value=v;e2.focus()}});
+}
+document.addEventListener('click',function(e){if(e.target&&e.target.id==='encgo')encTry()});
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id==='enccode'){e.preventDefault();encTry()}});
 function hashPrefill(){
+  if(ENC)return Promise.resolve(false);
   var m=/^#p=([GJ])\.([A-Za-z0-9_-]+)/.exec(location.hash||'');
   if(!m)return Promise.resolve(false);
   return (async function(){
@@ -322,6 +344,7 @@ function hashPrefill(){
 
 /* ---------- render ---------- */
 function render(keepFocus){
+  if(ENC){$('main').innerHTML=encGate();$('aside').innerHTML='';$('prog').innerHTML='';return}
   var a=steps();if(S.step>=a.length)S.step=a.length-1;if(S.step<0)S.step=0;
   var s=a[S.step],ae=document.activeElement,fid0=keepFocus&&ae&&ae.id?ae.id:'',selStart=null;
   if(fid0&&ae.selectionStart!=null)try{selStart=ae.selectionStart}catch(e){}
