@@ -419,6 +419,12 @@ var YN='yn';
 
 var CLIENT=[
   Q('name','Client or business name','text',{full:true,ph:'As shown on the policy'}),
+  Q('nzbn','NZBN','text',{seg:'commercial',hint:'13-digit New Zealand Business Number.'}),
+  Q('coNo','Company number','text',{seg:'commercial'}),
+  Q('entType','Entity type and status','text',{seg:'commercial',ph:'e.g. NZ Limited Company, Registered'}),
+  Q('incDate','Date incorporated','date',{seg:'commercial'}),
+  Q('regOffice','Registered office','text',{seg:'commercial',full:true,hint:'From the Companies Register. Often the accountant\'s office, so it is kept separate from the site address.'}),
+  Q('directors','Directors','area',{seg:'commercial',full:true,hint:'One per line.'}),
   Q('dob','Date of birth','date',{seg:'domestic'}),
   Q('phone','Phone','tel'),
   Q('contact','Contact person','text'),
@@ -1511,6 +1517,106 @@ function hzSearch(inp,P,box){
   return true;
 }
 
+/* coreg */
+/* ---- Companies Office look-up (NZBN API). Off in the demo; makes no calls without a key. ---- */
+var CO={res:null,busy:false,msg:'',err:false,pick:null,q:'',useName:false};
+var CO_BASE='https://api.business.govt.nz/gateway/nzbn/v5';
+function coKey(){try{return (localStorage.getItem('bd_nzbnkey')||'').trim();}catch(e){return '';}}
+function coOff(){return !!window.__BD_DEMO;}
+async function coFetch(path){
+  var r;try{r=await fetch(CO_BASE+path,{headers:{'Ocp-Apim-Subscription-Key':coKey(),'Accept':'application/json'}});}
+  catch(e){throw new Error('Could not reach the Companies Office. Check you are online and try again.');}
+  if(r.status===401||r.status===403){var t='';try{t=String((await r.json()).message||'');}catch(e){}
+    throw new Error('The Companies Office did not accept your key ('+r.status+(t?': '+t.replace(/\s*x+$/,'').slice(0,160):'')+'). Check it was copied in full, and that your NZBN API subscription has been approved.');}
+  if(r.status===429)throw new Error('Too many look-ups in a short time. Wait a minute and try again.');
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('The Companies Office returned an error ('+r.status+'). Try again shortly.');
+  return r.json();
+}
+function coName(p){return [p.firstName,p.middleNames||p.middleName,p.lastName].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();}
+function coAddr(a){return [a.address1,a.address2,a.address3,a.address4,a.postCode].filter(Boolean).join(', ');}
+function coList(j){var a=j&&(j.items||j.entities||j.results||j.data)||[];return Array.isArray(a)?a:[];}
+function coParse(e){
+  var roles=(e.roles||[]).filter(function(r){return /director/i.test(r.roleType||'')&&!/inactive|removed|ceased|resigned|historic/i.test(r.roleStatus||'')&&!r.endDate;});
+  var dirs=roles.map(function(r){return r.rolePerson?coName(r.rolePerson):(r.roleEntity&&(r.roleEntity.entityName||r.roleEntity.name))||'';}).filter(Boolean);
+  var al=e.addresses&&(e.addresses.addressList||e.addresses);if(!Array.isArray(al))al=[];
+  var reg=al.filter(function(a){return /regist/i.test(a.addressType||'')&&!a.endDate;})[0]||null;
+  return {nzbn:String(e.nzbn||''),coNo:String(e.sourceRegisterUniqueIdentifier||e.sourceRegisterUniqueId||''),legal:e.entityName||'',type:e.entityTypeDescription||'',status:e.entityStatusDescription||'',
+    inc:String(e.registrationDate||'').slice(0,10),reg:reg?coAddr(reg):'',dirs:dirs,hasRoles:Array.isArray(e.roles),trading:(e.tradingNames||[]).map(function(t){return t&&t.name;}).filter(Boolean)};
+}
+function coBad(s){return s&&!/^registered$/i.test(String(s).trim());}
+function coPanel(){
+  if(state.seg!=='commercial'||coOff())return '';
+  var h='<section class="coreg"><div class="coreg-h"><b>Companies Office look-up</b><span class="hint" style="margin:2px 0 0">For limited companies. Fills in the NZBN, company number, registered office and directors.</span></div>';
+  if(!coKey()){
+    h+='<label class="lab" for="co_key">Your NZBN API key</label><div class="corow"><input class="in" id="co_key" autocomplete="off" spellcheck="false" placeholder="Paste the subscription key"><button class="btn" type="button" id="co_savekey">Save key</button></div>'+
+      '<details class="cohow"><summary>How to get a free key</summary><ol><li>On a laptop, go to <b>portal.api.business.govt.nz</b> and create an account (or sign in).</li><li>Open <b>APIs</b>, choose <b>NZBN</b>, and subscribe to the free production plan. Approval can take a day or so.</li><li>Once approved, open your <b>Profile</b> (or Subscriptions), show the <b>Primary key</b> for the NZBN subscription and copy it.</li><li>Paste it above and press Save key. It is kept on this device only.</li></ol></details>';
+  }else{
+    h+='<div class="corow"><input class="in" id="co_q" type="search" autocomplete="off" placeholder="Company name or NZBN" value="'+esc(CO.q||get('client','name')||'')+'"><button class="btn primary" type="button" id="co_go"'+(CO.busy?' disabled':'')+'>'+(CO.busy?'Searching…':'Search')+'</button></div>';
+    if(CO.res&&!CO.pick){h+=CO.res.length?'<div class="colist">'+CO.res.map(function(x,i){return '<button type="button" class="coitem" data-co="'+i+'"><b>'+esc(x.entityName||'')+'</b><span>'+esc([x.entityTypeDescription,x.sourceRegisterUniqueIdentifier?'Company no. '+x.sourceRegisterUniqueIdentifier:'',x.nzbn?'NZBN '+x.nzbn:''].filter(Boolean).join(' · '))+'</span>'+(coBad(x.entityStatusDescription)?'<em class="cobad">'+esc(x.entityStatusDescription)+'</em>':'')+'</button>';}).join('')+'</div>':'<p class="hint" style="margin:8px 0 0">No companies matched. Try fewer words, or the NZBN.</p>';}
+    if(CO.pick){var p=CO.pick,cur=get('client','name')||'';
+      var row=function(l,v){return v?'<tr><th>'+esc(l)+'</th><td>'+esc(v)+'</td></tr>':'';};
+      h+='<div class="copick">'+(coBad(p.status)?'<p class="cowarn"><b>Status: '+esc(p.status)+'.</b> This company is not currently registered. Check with the client before arranging cover.</p>':'')+
+        '<table>'+row('Legal name',p.legal)+row('Trading as',p.trading.join(', '))+row('NZBN',p.nzbn)+row('Company number',p.coNo)+row('Type',p.type)+row('Status',p.status)+row('Incorporated',p.inc?fmtCoDate(p.inc):'')+row('Registered office',p.reg)+row('Directors',p.dirs.join(', ')||(p.hasRoles?'None listed':'Not returned by the register'))+'</table>'+
+        (p.legal&&cur.trim().toLowerCase()!==p.legal.trim().toLowerCase()?'<label class="cochk"><input type="checkbox" id="co_usename"'+(CO.useName||!cur.trim()?' checked':'')+'> Use the legal name as the client name'+(cur.trim()?' (replaces “'+esc(cur)+'”)':'')+'</label>':'')+
+        '<p class="hint" style="margin:6px 0 8px">Fills only empty boxes. The registered office is kept separate from the site address.</p>'+
+        '<div class="btnrow" style="margin:0"><button class="btn primary" type="button" id="co_use">Use these details</button><button class="btn" type="button" id="co_back">Back to results</button></div></div>';
+    }
+    if(CO.msg)h+='<p class="hint" role="'+(CO.err?'alert':'status')+'" style="margin:8px 0 0;'+(CO.err?'color:var(--bad)':'')+'">'+esc(CO.msg)+'</p>';
+    h+='<button type="button" class="cosmall" id="co_chkey">Change key</button>';
+  }
+  return h+'</section>';
+}
+function fmtCoDate(d){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d);return m?m[3]+'/'+m[2]+'/'+m[1]:d;}
+function coRedraw(){var el=document.querySelector('.coreg');if(!el)return;var w=document.createElement('div');w.innerHTML=coPanel();if(w.firstChild)el.replaceWith(w.firstChild);}
+async function coSearch(){
+  var q=(document.getElementById('co_q')||{}).value||'';q=q.trim();CO.q=q;CO.pick=null;CO.res=null;CO.err=false;
+  if(q.length<3){CO.msg='Type at least 3 letters of the company name, or the 13-digit NZBN.';CO.err=true;coRedraw();return;}
+  CO.busy=true;CO.msg='';coRedraw();
+  try{
+    var digits=q.replace(/\s/g,'');
+    if(/^\d{13}$/.test(digits)){var e=await coFetch('/entities/'+digits);CO.busy=false;if(!e){CO.res=[];}else{CO.pick=coParse(e);}}
+    else{var j=await coFetch('/entities?search-term='+encodeURIComponent(q)+'&page-size=10');CO.res=coList(j).slice(0,10);CO.busy=false;}
+  }catch(err){CO.busy=false;CO.msg=err.message;CO.err=true;}
+  coRedraw();
+}
+async function coChoose(i){
+  var x=CO.res&&CO.res[i];if(!x)return;CO.busy=true;CO.msg='Getting the company details…';CO.err=false;coRedraw();
+  try{var e=await coFetch('/entities/'+encodeURIComponent(x.nzbn));CO.busy=false;CO.msg='';if(!e){CO.msg='That company could not be found. Try the search again.';CO.err=true;}else{CO.pick=coParse(e);}}
+  catch(err){CO.busy=false;CO.msg=err.message;CO.err=true;}
+  coRedraw();
+}
+function coUse(){
+  var p=CO.pick;if(!p)return;var filled=[];
+  var put=function(id,v,label){if(v&&!String(get('client',id)||'').trim()){set('client',id,v);filled.push(label);}};
+  var cb=document.getElementById('co_usename');
+  if(p.legal&&(cb?cb.checked:!String(get('client','name')||'').trim())){set('client','name',p.legal);filled.push('client name');}
+  put('nzbn',p.nzbn,'NZBN');put('coNo',p.coNo,'company number');put('entType',[p.type,p.status].filter(Boolean).join(', '),'entity type');
+  put('incDate',p.inc,'incorporation date');put('regOffice',p.reg,'registered office');put('directors',p.dirs.join('\n'),'directors');
+  if(p.dirs.length&&!String(get('line:dno','dirs')||'').trim()){set('line:dno','dirs',String(p.dirs.length));}
+  CO.pick=null;CO.res=null;CO.msg=filled.length?'Filled in: '+filled.join(', ')+'.':'Nothing to fill: those boxes already had details. Clear a box first if you want to replace it.';CO.err=false;
+  render(true);
+}
+document.addEventListener('click',function(e){
+  var t=e.target;if(!t||!t.closest)return;var it=t.closest('.coitem');
+  if(it){coChoose(Number(it.getAttribute('data-co')));return;}
+  switch(t.id){
+    case 'co_go':coSearch();break;
+    case 'co_use':coUse();break;
+    case 'co_back':CO.pick=null;CO.msg='';coRedraw();break;
+    case 'co_chkey':try{localStorage.removeItem('bd_nzbnkey');}catch(x){}CO.res=null;CO.pick=null;CO.msg='';coRedraw();break;
+    case 'co_savekey':var v=(document.getElementById('co_key')||{}).value||'';v=v.trim();if(v.length<16){alertCo('That doesn’t look like a full key. Copy the whole Primary key.');break;}try{localStorage.setItem('bd_nzbnkey',v);}catch(x){}CO.msg='Key saved. Search for a company to check it works.';CO.err=false;coRedraw();break;
+  }
+});
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='co_usename')CO.useName=e.target.checked;});
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id==='co_q'){e.preventDefault();coSearch();}});
+function alertCo(m){CO.msg=m;CO.err=true;var el=document.querySelector('.coreg');if(el){var p=el.querySelector('.co-msg');if(!p){p=document.createElement('p');p.className='hint co-msg';p.setAttribute('role','alert');p.style.cssText='margin:8px 0 0;color:var(--bad)';el.appendChild(p);}p.textContent=m;}}
+(function(){var s=document.createElement('style');s.textContent='.coreg{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px;margin:0 0 16px}.coreg-h{display:flex;flex-direction:column;margin-bottom:8px}.corow{display:flex;gap:8px;align-items:center}.corow .in{flex:1;min-width:0}.corow .btn{flex:0 0 auto;width:auto;min-width:96px}'+
+ '.colist{display:flex;flex-direction:column;gap:6px;margin-top:10px}.coitem{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;border:1px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}.coitem:hover{border-color:var(--accent)}.coitem span{font-size:12.5px;color:var(--muted)}.cobad{font-style:normal;font-size:12px;font-weight:700;color:var(--bad)}'+
+ '.copick{margin-top:10px}.copick table{border-collapse:collapse;width:100%;font-size:14px;margin-bottom:8px}.copick th{text-align:left;font-weight:600;color:var(--muted);padding:4px 10px 4px 0;vertical-align:top;white-space:nowrap;width:1%}.copick td{padding:4px 0;overflow-wrap:anywhere}'+
+ '.cowarn{background:var(--bad-soft);color:var(--ink);border-radius:8px;padding:8px 10px;margin:0 0 8px;font-size:14px}.cochk{display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0}.cohow{margin-top:8px;font-size:13.5px}.cohow summary{cursor:pointer;color:var(--accent)}.cohow ol{padding-left:18px;margin:6px 0 0;line-height:1.5}'+
+ '.cosmall{background:none;border:0;padding:0;margin-top:8px;font:inherit;font-size:12.5px;color:var(--muted);text-decoration:underline;cursor:pointer}';document.head.appendChild(s);})();
+
 function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())return '';
   var h='<div class="calcbox autop"><h3>From LINZ data</h3><div class="autorows">';
   if(a.live&&!a.parea&&a.hz&&a.hz.busy)h+='<div><span>Land parcel and buildings</span><b>Looking up\u2026</b></div>';
@@ -1855,7 +1961,7 @@ function typeView(){
     '<h1 class="st">What type of renewal is this?</h1><p class="lead">Pick one. The policy lines and risk questions that follow depend on it.</p>'+
     '<div class="tiles" role="radiogroup" aria-label="Renewal type">'+tile('domestic',SVG.house)+tile('commercial',SVG.building)+'</div>';
 }
-function clientView(){return '<h1 class="st">Who is renewing?</h1><p class="lead">Only the name is required. Fill in what you have.</p>'+fieldsHTML('client',CLIENT);}
+function clientView(){return '<h1 class="st">Who is renewing?</h1><p class="lead">Only the name is required. Fill in what you have.</p>'+coPanel()+fieldsHTML('client',CLIENT);}
 function linesView(){
   if(!state.seg)return '<p class="lead">Choose a renewal type first.</p>';
   var sug=(state.seg==='commercial'&&IND[state.ind])?IND[state.ind].lines:[];

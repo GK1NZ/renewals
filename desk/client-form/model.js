@@ -3,6 +3,12 @@ function Q(id,label,type,o){o=o||{};o.id=id;o.label=label;o.type=type;return o;}
 var YN='yn';
 var CLIENT=[
   Q('name','Client or business name','text',{full:true,ph:'As shown on the policy'}),
+  Q('nzbn','NZBN','text',{seg:'commercial',hint:'13-digit New Zealand Business Number.'}),
+  Q('coNo','Company number','text',{seg:'commercial'}),
+  Q('entType','Entity type and status','text',{seg:'commercial',ph:'e.g. NZ Limited Company, Registered'}),
+  Q('incDate','Date incorporated','date',{seg:'commercial'}),
+  Q('regOffice','Registered office','text',{seg:'commercial',full:true,hint:'From the Companies Register. Often the accountant\'s office, so it is kept separate from the site address.'}),
+  Q('directors','Directors','area',{seg:'commercial',full:true,hint:'One per line.'}),
   Q('dob','Date of birth','date',{seg:'domestic'}),
   Q('address','Site or premises address','text',{full:true,addr:true,hint:'Start typing the number and street, then pick the address. You can also type it in by hand.'}),
   Q('contact','Contact person','text'),
