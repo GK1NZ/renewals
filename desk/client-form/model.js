@@ -191,7 +191,8 @@ var LINES={
     Q('gpChange','Gross profit expected to move by more than 10%?',YN,{full:true})
   ]},
   liab:{name:'Public and Products Liability',desc:'Limit, exports, contractors and products',q:[
-    Q('limit','Limit of liability','opt',{full:true,opts:['$1M','$2M','$5M','$10M','Other']}),
+    Q('limit','Limit of liability','opt',{full:true,opts:['$500k','$1M','$2M','$5M','$10M','Other']}),
+    Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
     Q('subs','Use subcontractors?',YN,{f:'subs'}),
     Q('subSpend','Annual subcontractor spend','num',{showIf:['subs','Yes'],f:'subs'}),
     Q('na','Any exports or overseas sales, including to the USA or Canada?',YN,{f:'export',hint:'Includes products, services and online sales to overseas customers.'}),
@@ -217,6 +218,8 @@ var LINES={
     Q('liabNote','Anything else the insurer should know','area',{full:true})
   ]},
   statutory:{name:'Statutory Liability',desc:'Regulatory exposure and health and safety',q:[
+    Q('limit','Limit of indemnity','opt',{full:true,opts:['$500k','$1M','$2M','$5M','Other']}),
+    Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
     Q('staff','Employees and contractors on site','int'),
     Q('inv','Investigation or prosecution by WorkSafe, council or another regulator in the last 5 years?',YN,{full:true}),
     Q('invD','Details','area',{full:true,showIf:['inv','Yes']}),
@@ -226,6 +229,7 @@ var LINES={
   pi:{name:'Professional Indemnity',desc:'Fee income, limits and contract terms',q:[
     Q('fees','Annual fee income (ex GST)','num'),
     Q('limit','Limit of indemnity','opt',{full:true,opts:['$500k','$1M','$2M','$5M','Other']}),
+    Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
     Q('largest','Largest single project or contract value','num'),
     Q('lol','Contracts include a limitation of liability?',YN,{full:true}),
     Q('overseas','Any work for overseas clients?',YN,{full:true}),
@@ -244,6 +248,8 @@ var LINES={
     Q('circD','Details','area',{full:true,showIf:['circ','Yes']})
   ]},
   dno:{name:'Directors and Officers',desc:'Management liability and governance',q:[
+    Q('limit','Limit of indemnity','opt',{full:true,opts:['$500k','$1M','$2M','$5M','Other']}),
+    Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
     Q('dirs','Number of directors','int'),
     Q('assets','Net assets (latest accounts)','num'),
     Q('dispute','Any shareholder or director disputes?',YN,{full:true}),
@@ -252,7 +258,8 @@ var LINES={
     Q('dnoD','Details','area',{full:true})
   ]},
   cyber:{name:'Cyber',desc:'Data held, controls and incident history',q:[
-    Q('limit','Limit required','opt',{full:true,opts:['$250k','$500k','$1M','$2M','Other']}),
+    Q('limit','Limit required','opt',{full:true,opts:['$500k','$1M','$2M','$5M','Other']}),
+    Q('limitOth','Other limit','num',{showIf:['limit','Other']}),
     Q('records','Customer or personal records held','int'),
     Q('cards','Process card payments?',YN),
     Q('mfa','Multi-factor authentication','opt',{full:true,opts:['All users','Admins only','None']}),
