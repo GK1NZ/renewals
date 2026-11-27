@@ -1659,6 +1659,7 @@ function rcPanel(){
         '<div class="btnrow" style="margin:0"><button class="btn primary" type="button" id="rc_mail"'+(busy?' disabled':'')+'>Email the link'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_copy">Copy the link</button>'+(ph?'<a class="btn" href="sms:'+esc(ph)+'?&body='+encodeURIComponent('Your code to open your insurance renewal details: '+RC.code)+'">Text the code</a>':'')+'<button class="btn" type="button" id="rc_new">New link</button></div>';
     }
   }else{h+='<p class="hint" style="margin:6px 0 0">Protected links work when the Meeting Guide is opened from the website, not from a folder on this device. You can still email or copy the details below.</p>';}
+  h+='<div class="rcpdf"><p style="margin:12px 0 6px"><b>Or send a PDF they can type into</b><span class="hint" style="margin:2px 0 0">Every question for their covers, with your answers filled in and blank boxes for the rest. They correct it, confirm at the end and email it back. The PDF itself isn\u2019t locked, so use the protected link for anything sensitive.</span></p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_pdfmail"'+(busy?' disabled':'')+'>Email the PDF'+(String(get('client','email')||'').trim()?' to '+esc(String(get('client','email')).trim()):'')+'</button><button class="btn" type="button" id="rc_pdfdl">Download the PDF</button></div></div>';
   h+='<details class="cohow"'+(rcLive()?'':' open')+'><summary>Other ways to send the details</summary><p class="hint" style="margin:6px 0">These put the client’s details straight into an email, unprotected. Fine for many clients, but the protected link is safer.</p><div class="btnrow" style="margin:0"><button class="btn" type="button" id="rc_plain"'+(busy?' disabled':'')+'>Email the details'+(em?' to '+esc(em):'')+'</button><button class="btn" type="button" id="rc_text">Copy the details</button></div></details>';
   h+='<div id="status-rc" role="status">'+statusHTML('rc')+'</div></section>';
   return h;
@@ -1684,6 +1685,70 @@ document.addEventListener('click',async function(e){
     await makeDraft('rc',{to:[to2],subject:'Your renewal information: '+clientName(),body:b.text,htmlBody:b.html,includeSignature:true},'');return;}
 });
 (function(){var s=document.createElement('style');s.textContent='.rccode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 0}.rccode span{font-size:13px;color:var(--muted)}.rccode b{font-family:var(--f-mono);font-size:24px;letter-spacing:.08em;background:var(--accent-soft);color:var(--ink);padding:4px 12px;border-radius:8px}.rcbox .btnrow{flex-wrap:wrap}.rcbox .btnrow .btn{flex:0 1 auto;width:auto}';document.head.appendChild(s);})();
+/* ---- Fillable PDF of the client's answers, to attach to an email ---- */
+function rcFieldVal(q,v){
+  if(isEmpty(v))return '';
+  if(isLst(q))return lstJoin(q,v).replace(/; /g,'\n');
+  if(Array.isArray(v))return v.join('; ');
+  if(q.type==='num')return money(v);
+  if(q.type==='date')return fmtDate(v);
+  return String(v);
+}
+function rcPdfSections(){
+  var out=[],skip={preparedBy:1,preparedRole:1,preparedPhone:1,preparedEmail:1};
+  var take=function(title,scope,qs){var rows=qs.filter(function(q){return !skip[q.id]&&isShown(scope,q);}).map(function(q){return {scope:scope,q:q};});if(rows.length)out.push({title:title,rows:rows});};
+  take('About you','client',CLIENT);
+  if(state.seg)take(PROFILE[state.seg].title,'profile',profileQs());
+  onLines().forEach(function(l){take(LINES[l].name,'line:'+l,lineQs(l));});
+  return out;
+}
+function rcPdf(){
+  var J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error('pdf');
+  /* compress breaks form fields in this jsPDF version, so the fillable PDF is left uncompressed */
+  var doc=new J({unit:'mm',format:'a4',compress:false});doc.setProperties({title:'',subject:'',author:'',keywords:'',creator:''});
+  var W=210,M=15,FW=W-2*M,y=M,n=0;
+  function chk(h){if(y+h>282){doc.addPage();y=M;}}
+  function field(name,val,h,multi){
+    var tf=new doc.AcroFormTextField();tf.fieldName=name;tf.Rect=[M,y,FW,h];tf.fontSize=9;tf.multiline=!!multi;tf.value=pdfTxt(val||'');
+    doc.setDrawColor(150,165,178);doc.setFillColor(248,250,252);doc.rect(M,y,FW,h,'FD');doc.addField(tf);y+=h;
+  }
+  var pf=(window.BDMG&&window.BDMG.profile)||{},who=get('client','preparedBy')||pf.name||'';
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(26,39,51);doc.text('Your insurance renewal information',M,y+5);y+=10;
+  doc.setFontSize(12);doc.splitTextToSize(pdfTxt(clientName()),FW).forEach(function(l){doc.text(l,M,y+3);y+=5.5;});
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(86,101,115);
+  [segLabel()+(state.seg==='commercial'&&IND[state.ind]?' - '+IND[state.ind].name:'')+'  |  Prepared '+new Date().toLocaleDateString('en-NZ'),prepLine()].filter(Boolean).forEach(function(l){doc.text(pdfTxt(l),M,y+3);y+=4.6;});
+  y+=3;doc.setFillColor(232,244,243);var ins=['Please check this carefully. It is what we recorded for your renewal, and insurers rely on it.','1. Check each answer and type over anything that is wrong or has changed.','2. Fill in any blank boxes you can.','3. Confirm at the end, save the file, and email it back'+(who?' to '+who:'')+'.','Open it in Adobe Acrobat Reader, Preview on a Mac, or a PDF app on your phone so you can type in the boxes.'];
+  var ih=ins.length*4.6+4;doc.rect(M,y,FW,ih,'F');doc.setTextColor(26,39,51);ins.forEach(function(l,i){doc.setFont('helvetica',i===0?'bold':'normal');doc.text(pdfTxt(l),M+3,y+5+i*4.6);});y+=ih+5;
+  rcPdfSections().forEach(function(s){
+    chk(22);doc.setFillColor(43,58,71);doc.rect(M,y,FW,6.5,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(pdfTxt(s.title).toUpperCase(),M+2,y+4.5);y+=9;
+    s.rows.forEach(function(r){
+      var q=r.q,v=get(r.scope,q.id),val=rcFieldVal(q,v),multi=q.type==='area'||isLst(q)||(q.type==='multi'&&val.length>80)||val.length>95;
+      var lab=doc.splitTextToSize(pdfTxt(q.label),FW),opts=(q.type==='opt'||q.type==='multi'||q.type===YN)?(q.type===YN?['Yes','No']:(q.opts||[])):[];
+      var oh=opts.length?doc.splitTextToSize(pdfTxt((q.type==='multi'?'Choose any: ':'Choose one: ')+opts.join(' / ')),FW).length*3.6:0,fh=multi?Math.max(14,Math.min(40,6+Math.ceil(val.length/95)*4.2)):7;
+      chk(lab.length*4.2+oh+fh+5);
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(26,39,51);lab.forEach(function(l){doc.text(l,M,y+3.2);y+=4.2;});
+      if(opts.length){doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(110,122,134);doc.splitTextToSize(pdfTxt((q.type==='multi'?'Choose any: ':'Choose one: ')+opts.join(' / ')),FW).forEach(function(l){doc.text(l,M,y+2.8);y+=3.6;});}
+      y+=0.8;field(r.scope.replace(/[^a-z0-9]/gi,'_')+'.'+q.id+'.'+(n++),val,fh,multi);y+=4;
+    });
+    y+=2;
+  });
+  chk(70);doc.setFillColor(43,58,71);doc.rect(M,y,FW,6.5,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('ANYTHING ELSE, AND YOUR CONFIRMATION',M+2,y+4.5);y+=9;
+  doc.setTextColor(26,39,51);doc.text('Anything else we should know (changes in the business, claims, new risks)',M,y+3.2);y+=5;field('confirm.other','',20,true);y+=5;
+  var cb=new doc.AcroFormCheckBox();cb.fieldName='confirm.ok';cb.Rect=[M,y,5,5];cb.appearanceState='Off';doc.setDrawColor(43,58,71);doc.rect(M,y,5,5);doc.addField(cb);
+  doc.setFont('helvetica','normal');doc.splitTextToSize('I confirm that, to the best of my knowledge, this information is true and complete, and I have told you about anything an insurer would want to know.',FW-9).forEach(function(l,i){doc.text(l,M+8,y+3.6+i*4.2);});y+=13;
+  doc.setFont('helvetica','bold');doc.text('Your full name',M,y+3.2);y+=5;field('confirm.name','',7,false);y+=4;doc.text('Date',M,y+3.2);y+=5;field('confirm.date','',7,false);
+  var pages=doc.getNumberOfPages();for(var i=1;i<=pages;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,130,140);doc.text(pdfTxt(clientName()+'  |  page '+i+' of '+pages),M,291);}
+  return scrubPDF(new Uint8Array(doc.output('arraybuffer')));
+}
+function rcPdfName(){var d=new Date();return 'renewal-details_'+(slug(get('client','name'))||'client')+'_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.pdf';}
+document.addEventListener('click',async function(e){
+  var t=e.target;if(!t||(t.id!=='rc_pdfdl'&&t.id!=='rc_pdfmail'))return;
+  var u8;try{u8=rcPdf();}catch(err){console.error('rcPdf',err&&err.stack||err);setStatus('rc','bad','The PDF couldn’t be made on this device. Try again, or use Copy the details.');return;}
+  if(t.id==='rc_pdfdl'){window.BDDevice.saveBlob(rcPdfName(),new Blob([u8],{type:'application/pdf'}));setStatus('rc','ok','PDF saved. Attach it to an email to the client.');return;}
+  var to=rcEmailOk();if(!to)return;
+  var body='Hi '+rcFirst()+',\n\nThanks for your time today. Attached is a copy of the information we went through for your insurance renewal.\n\nPlease open it, check each answer, type over anything that’s wrong and fill in any blanks you can. Then tick the confirmation at the end, save the file and email it back to me.\n\nIt works in Adobe Acrobat Reader, Preview on a Mac, or most PDF apps on a phone. If anything is easier to explain by phone, just give me a call.';
+  await makeDraft('rc',{to:[to],subject:'Please check your insurance renewal details - '+clientName(),body:body,includeSignature:true,attachments:[{content:u8b64(u8),filename:rcPdfName(),mimeType:'application/pdf'}]},'');
+});
 
 function autoPanel(v){var a=state.auto;if(!a||!v||a.addr!==String(v).trim())return '';
   var h='<div class="calcbox autop"><h3>From LINZ data</h3><div class="autorows">';
